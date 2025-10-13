@@ -368,10 +368,10 @@ def escape_counter(condition): # condition is the first part of the string of fl
         
                 
         '''slicing dataframe from esc_turn until end'''
-        df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
+        df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True) #Selects only the rows where loom_offset and columns from 'esc_turn' onwards (all the escape behavior columns: esc_turn, esc_run, esc_jump, esc_freeze, etc.)
         df_all = pd.concat([df_all,df_loom])
 
-    df_all = df_all.reset_index()
+    df_all = df_all.reset_index() #It's collecting all the escape behavior data (one row per loom per file) into a single dataframe that you can analyze across your entire dataset.
 
     for i in range(len(df_all)):
         if df_all.loc[i,'esc_jump']==1: #=> jumping is ovveriding everything!
