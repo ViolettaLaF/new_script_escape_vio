@@ -44,10 +44,10 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_tsh_gal80_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = '39347_tsh_gal80_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
-#group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
+group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+#group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' 
 
 
 
@@ -69,7 +69,7 @@ number_of_looms= 20
 loom_duration_sec = 0.5
 loom_duration  = loom_duration_sec * frame_rate
 #in frames
-zoom_before_loom_onset = 120 #SCRUPOLI: but why in the plot is till 90 (-1.5) instead of 120 (-2)??? 
+zoom_before_loom_onset = 120 #SCRUPOLI: but why in the plot is till 90 (-1.5) instead of 120 (-2)??? because in the plot we were deciding to ignore that part
 zoom_after_loom_onset = 600 #180 #this make sense!!! 
 
 #For line plots
@@ -106,23 +106,6 @@ def heading(dx, dy): #wait in all this script this function is never being used?
     return degs_lst
 
 #%%
-#ZOOM AROUND LOOM FUNCTION TO GET MEAN TIME 'BEHAVIOR' DURING BASELINE OR STIMULATION PER FLY
-def zoom_violin_plots_variables(variable, behavior, column_df):
-    before_variable_behavior = variable[behavior][before_loom_start:before_loom_end].mean(axis=0).reset_index(drop=True)
-    after_variable_behavior = variable[behavior][after_loom_start:after_loom_end].mean(axis=0).reset_index(drop=True)
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_before'] = before_variable_behavior
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_after'] = after_variable_behavior
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_delta'] = after_variable_behavior - before_variable_behavior
-
-
-
-#ZOOM AROUND LOOM FUNCTION TO GET MEAN TIME 'BEHAVIOR' ACROSS THE GROUP
-def zoom_line_plots_variables(variable, behavior, column_df):
-    variable[(str(behavior))+'_mean'] = variable[behavior].mean(axis=1)
-    variable[(str(behavior))+'_sem'] = variable[behavior].sem(axis=1)
-    zoom_line_plots_df['group'+(str(group_n))+'_'+column_df+'_mean'] = (variable[(str(behavior))+'_mean'].groupby(variable.index // bin_size_zoom).mean())
-    zoom_line_plots_df['group'+(str(group_n))+'_'+column_df+'_sem'] = (variable[(str(behavior))+'_sem'].groupby(variable.index // bin_size_zoom).mean())
-#%%
 '''upload scored file'''
 
 df_all = pd.DataFrame() #this will contain all excapes per loom in the end
@@ -130,6 +113,17 @@ df_all = pd.DataFrame() #this will contain all excapes per loom in the end
 path = exp_path
 #Upper treshold for speed 2D
 jump_velocity = 75
+
+# Dictionary to store aggregate results across all files to assess wich time window is better for the permutation
+aggregate_window_data = {}
+aggregate_p_values = {}
+
+# Initialize aggregate dictionaries with window keys
+window_starts_sec_init = np.arange(0.5, 8.5, 0.5)
+for w_sec in window_starts_sec_init:
+    w_key = f"{w_sec:.1f}s"
+    aggregate_window_data[w_key] = {'escape_runs': 0, 'total_looms': 0}
+    aggregate_p_values[w_key] = []
 
 for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files you want to check
 
@@ -159,15 +153,13 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
     heading_x_after = []
     heading_y_after = []
     
-    "CHANGING COORDINATE SYSTEM TO BE WITH THE CENTER OF THE ARENA IN (0,0) INSTEAD OF (15,15) and the screen at y+ " # to check turn and the screen at y+
+    "CHANGING COORDINATE SYSTEM TO BE WITH THE CENTER OF THE ARENA IN (0,0) INSTEAD OF (15,15) and the screen at y+ " # to check turn 
     df_try['fly_x_norm_mm'] = df_try['fly_x_norm_mm'] - 15
     df_try['fly_y_norm_mm'] = (df_try['fly_y_norm_mm'] - 15) * -1 
     
-    df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']  
-    
-    df_try.loc[(df_try['walk_bout'] == 1), 'walk_speed_bout'] = df_try['velocity']
-    
-    df_try.loc[(df_try['velocity'] < jump_velocity), 'speed2d'] = df_try['velocity']
+    df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']  #velocity of walking flies     
+    df_try.loc[(df_try['walk_bout'] == 1), 'walk_speed_bout'] = df_try['velocity'] #velocity of the fly while in a walking bout    
+    df_try.loc[(df_try['velocity'] < jump_velocity), 'speed2d'] = df_try['velocity'] #velocity of flies (regardless if they are walking or not) considering as a maximum speed the thresold for jumps
     
     for loom in range(len(df_try)):    
         if loom in loom_onset:
@@ -208,35 +200,318 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
             df_try.loc[loom_offset[i], 'esc_freeze'] = 1
     
 
-    '''checking increase in speed''' #This block is checking if flies significantly increase their running speed after the looming stimulus. It does this with a bootstrapping approach (sampling random subsets of velocities before and after) and then applying a t-test. If the increase is real and not just noise, it marks that loom as an “escape run.”
-    for loom in range(len(loom_onset)):
-        permutated_pre = df_try.loc[loom_onset[i]-120:(loom_onset[i]), 'velocity'] #velocities in the time window that goes from 2 second before loom onset to loom onset! 
-        permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'velocity'] #velocities in the time window that goes from loom offset to 2 second after!
+    """
+    REPLACE the "checking increase in speed" block with this code
+    This goes INSIDE the for filename loop, after the freeze checks
+    """
+
+#%% SLIDING WINDOW ANALYSIS FOR ESCAPE RUNNING
+    # Test multiple time windows after loom onset
+
+    # Parameters for sliding window
+    window_size_sec = 2  # same size as original (loom_offset to loom_offset+120 frames = 2 sec)
+    window_size_frames = window_size_sec * frame_rate  # 120 frames
+
+    # Sliding window parameters
+    start_window_sec = 0.5  # start at 0.5 sec after loom onset
+    end_window_sec = 8  # go up to 8 sec after loom onset
+    step_sec = 0.5  # slide by 0.5 sec increments
+    step_frames = int(step_sec * frame_rate)
+
+    # Create list of window starts (in seconds after loom onset)
+    window_starts_sec = np.arange(start_window_sec, end_window_sec + step_sec, step_sec)
+    window_starts_frames = (window_starts_sec * frame_rate).astype(int)
+
+    print(f"\n--- SLIDING WINDOW ANALYSIS FOR {filename} ---")
+    print(f"Window size: {window_size_sec} sec ({window_size_frames} frames)")
+    print(f"Testing windows from {start_window_sec}s to {end_window_sec}s after loom onset")
+    print(f"Step size: {step_sec} sec ({step_frames} frames)")
+    print(f"Total windows to test: {len(window_starts_sec)}\n")
+
+    # Dictionary to store results for each window
+    window_results = {}
+    window_p_values = {}  # to track p-values per window
+    window_escape_runs = {}  # to track which looms are escapes per window
+
+    # Test each window
+    for window_idx, window_start_frames in enumerate(window_starts_frames):
+        window_end_frames = window_start_frames + window_size_frames
+        window_time_sec = window_starts_sec[window_idx]
         
-        train_pre = []
-        train_post = []
-        ''' run 100 permutations of velocity per frame per loom(2 seconds before and after loom)'''
-        for perm in range (100):
-            df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
-            row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
-            train_pre.append(row_pre)
+        print(f"Testing window: {window_time_sec:.1f}s - {window_time_sec + window_size_sec:.1f}s after loom onset")
         
-            df_sample_post  = permutated_post.sample(n=30)
-            row_post = df_sample_post.mean(axis=0) #mean of 30 samples --> take unpaired t-test instead, if >0.05
-            train_post.append(row_post)
+        df_try_window = df_try.copy()
+        df_try_window['esc_run_window'] = 0
+        p_values_per_loom = []
+        escape_runs_per_loom = []
+        
+        # Check each loom with this window
+        for loom in range(len(loom_onset)):
+            # Time window: from (loom_onset + window_start) to (loom_onset + window_end)
+            window_post_start = loom_offset[loom] + window_start_frames #SCRUPOLI why it says loom_onset but then is loom_offset??
+            window_post_end = loom_offset[loom] + window_end_frames
+            
+            # Pre-loom window stays the same: 2 sec before loom onset
+            permutated_pre = df_try_window.loc[loom_onset[loom]-120:(loom_onset[loom]), 'velocity']
+            permutated_post = df_try_window.loc[window_post_start:window_post_end, 'velocity']
+            
+            # Skip if not enough data - safety check to avaid weird statistics if nan or not data present!
+            if len(permutated_pre) < 30 or len(permutated_post) < 30:
+                p_values_per_loom.append(np.nan)
+                escape_runs_per_loom.append(0)
+                continue
+            
+            train_pre = []
+            train_post = []
+            
+            # Run 100 permutations
+            for perm in range(100):
+                df_sample_pre = permutated_pre.sample(n=30, replace=True) #.sample(n=30) - Randomly picks 30 frames from permutated_pre (which has 120 frames)
+                row_pre = df_sample_pre.mean(axis=0)
+                train_pre.append(row_pre)
+                
+                df_sample_post = permutated_post.sample(n=30, replace=True)
+                row_post = df_sample_post.mean(axis=0) 
+                train_post.append(row_post)
+            
+            # T-test
+            t, p = ttest_ind(train_pre, train_post)
+            p_values_per_loom.append(p)
+            
+            if (df_try_window.loc[loom_onset[loom], 'freeze_bout'] == 0):
+                if (t < 0) & (p < 0.05): #SCRUPOLI shouldn't be t>0!!!! 
+                    df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
+                    escape_runs_per_loom.append(1)
+                else:
+                    escape_runs_per_loom.append(0)
+            else:
+                escape_runs_per_loom.append(0)
+        
+        # Store results
+        window_key = f"{window_time_sec:.1f}s"
+        window_results[window_key] = df_try_window.copy()
+        window_p_values[window_key] = p_values_per_loom
+        window_escape_runs[window_key] = escape_runs_per_loom
+        
+        n_escapes = sum(escape_runs_per_loom)
+        print(f"  → Escape runs detected: {n_escapes} / {len(loom_onset)}")
+        p_sig = [p for p in p_values_per_loom if p < 0.05 and not np.isnan(p)]
+        if p_sig:
+            print(f"  → Mean p-value (significant only): {np.mean(p_sig):.4f}\n")
+        else:
+            print(f"  → No significant p-values\n")
+
+    #%% PLOT: P-VALUES ACROSS ALL WINDOWS (per file)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Plot 1: Number of escape runs per window
+    ax = axes[0, 0]
+    n_escapes_per_window = [sum(window_escape_runs[w]) for w in window_results.keys()]
+    ax.plot(window_starts_sec, n_escapes_per_window, 'o-', linewidth=2, markersize=8, color='steelblue')
+    ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
+    ax.set_ylabel('Number of escape runs', fontsize=12)
+    ax.set_title('Escape Runs Detected vs Window Position', fontsize=13, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+
+    # Plot 2: Mean p-value per window (only for escape runs)
+    ax = axes[0, 1]
+    mean_p_values = []
+    for w in window_results.keys():
+        # Only include p-values for looms classified as escape runs
+        p_vals = [window_p_values[w][i] for i in range(len(window_escape_runs[w])) 
+                  if window_escape_runs[w][i] == 1 and window_p_values[w][i] < 0.05 and not np.isnan(window_p_values[w][i])]
+        mean_p_values.append(np.mean(p_vals) if p_vals else np.nan)
+    ax.plot(window_starts_sec, mean_p_values, 'o-', linewidth=2, markersize=8, color='coral')
+    ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
+    ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
+    ax.set_ylabel('Mean p-value (escape runs only)', fontsize=12)
+    ax.set_title('Statistical Significance vs Window Position\n(Escape Runs Only)', fontsize=13, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # Plot 3: Distribution of p-values per window (boxplot, only escape runs)
+    ax = axes[1, 0]
+    p_vals_for_box = []
+    for w in window_results.keys():
+        # Only include p-values for looms classified as escape runs
+        p_vals = [window_p_values[w][i] for i in range(len(window_escape_runs[w])) 
+                  if window_escape_runs[w][i] == 1]
+        p_vals_for_box.append(p_vals)
     
-        '''take t-test of 100 samples between groups'''            
-        t, p = ttest_ind(train_pre, train_post)
-        if (df_try.loc[loom_onset[loom],'freeze_bout']==0):
-            if (t<0) & (p<0.05):
-                df_try.loc[loom_offset[loom], 'esc_run'] = 1 #if t-test is significant, if yes --> 1
+    bp = ax.boxplot(p_vals_for_box, labels=[f"{w}" for w in window_results.keys()], patch_artist=True)
+    for patch in bp['boxes']:
+        patch.set_facecolor('lightblue')
+    ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
+    ax.set_xlabel('Window start time (sec)', fontsize=12)
+    ax.set_ylabel('P-value', fontsize=12)
+    ax.set_title('Distribution of P-values Across Windows\n(Escape Runs Only)', fontsize=13, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis='y')
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
+
+    # Plot 4: Summary table
+    ax = axes[1, 1]
+    ax.axis('off')
+    summary_data = []
+    for w in window_results.keys():
+        n_esc = sum(window_escape_runs[w])
+        p_vals = [p for p in window_p_values[w] if p < 0.05 and not np.isnan(p)]
+        mean_p = np.mean(p_vals) if p_vals else np.nan
+        summary_data.append([w, n_esc, f"{mean_p:.4f}" if not np.isnan(mean_p) else "N/A"])
+
+    table = ax.table(cellText=summary_data, 
+                    colLabels=['Window (sec)', 'N Escapes', 'Mean p-value'],
+                    cellLoc='center', loc='center', fontsize=10)
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 2)
+
+    plt.tight_layout()
+    filename_base = filename.replace('_frames.csv', '')
+    plt.savefig(plot_path + f'/sliding_window_analysis_{filename_base}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(plot_path_pdf + f'/sliding_window_analysis_{filename_base}.pdf', bbox_inches='tight')
+    print(f"Saved: sliding_window_analysis_{filename_base}.png/pdf")
+    plt.show()
+
+    #%% PLOT: SPEED PROFILES FOR SIGNIFICANT WINDOWS
+    # Select a few interesting windows to plot speed profiles
+    windows_to_plot = ['0.5s', '2.0s', '4.0s', '8.0s']  # Adjust as needed
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
+
+    for plot_idx, window_key in enumerate(windows_to_plot):
+        if window_key not in window_results:
+            continue
+        
+        ax = axes[plot_idx]
+        df_w = window_results[window_key]
+        
+        # Extract speed data for looms where escape was detected
+        escape_speeds = []
+        non_escape_speeds = []
+        
+        for i, loom in enumerate(loom_offset):
+            speed_window = df_try.loc[loom-120:loom+480, 'velocity'].values  # 2 sec before to 8 sec after
+            if len(speed_window) == 601:  # Check we have full window
+                if window_escape_runs[window_key][i] == 1:
+                    escape_speeds.append(speed_window)
+                else:
+                    non_escape_speeds.append(speed_window)
+        
+        # Plot mean ± SEM
+        if escape_speeds:
+            escape_array = np.array(escape_speeds)
+            escape_mean = escape_array.mean(axis=0)
+            escape_sem = escape_array.std(axis=0) / np.sqrt(len(escape_speeds))  # Calculate SEM manually
+            time_points = np.arange(len(escape_mean)) / frame_rate - 2  # time in seconds relative to loom onset
+            ax.plot(time_points, escape_mean, 'r-', linewidth=2, label='Escape runs (n=' + str(len(escape_speeds)) + ')')
+            ax.fill_between(time_points, escape_mean - escape_sem, escape_mean + escape_sem, alpha=0.3, color='red')
+        
+        if non_escape_speeds:
+            non_escape_array = np.array(non_escape_speeds)
+            non_escape_mean = non_escape_array.mean(axis=0)
+            non_escape_sem = non_escape_array.std(axis=0) / np.sqrt(len(non_escape_speeds))  # Calculate SEM manually
+            time_points = np.arange(len(non_escape_mean)) / frame_rate - 2
+            ax.plot(time_points, non_escape_mean, 'b-', linewidth=2, label='Non-escapes (n=' + str(len(non_escape_speeds)) + ')')
+            ax.fill_between(time_points, non_escape_mean - non_escape_sem, non_escape_mean + non_escape_sem, alpha=0.3, color='blue')
+        
+        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, label='Loom onset')
+        ax.set_xlabel('Time relative to loom onset (sec)', fontsize=11)
+        ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
+        ax.set_title(f'Speed Profile - Window: {window_key}', fontsize=12, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(plot_path + f'/speed_profiles_windows_{filename_base}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(plot_path_pdf + f'/speed_profiles_windows_{filename_base}.pdf', bbox_inches='tight')
+    print(f"Saved: speed_profiles_windows_{filename_base}.png/pdf")
+    plt.show()
+
+    #%% SUMMARY FOR THIS FILE
+    print("\n" + "="*60)
+    print(f"SLIDING WINDOW ANALYSIS SUMMARY - {filename}")
+    print("="*60)
+    for w in sorted(window_results.keys()):
+        n_esc = sum(window_escape_runs[w])
+        p_vals = [p for p in window_p_values[w] if p < 0.05 and not np.isnan(p)]
+        mean_p = np.mean(p_vals) if p_vals else np.nan
+        print(f"\nWindow: {w} after loom onset")
+        print(f"  Escape runs: {n_esc}")
+        print(f"  Mean p-value: {mean_p:.4f}" if not np.isnan(mean_p) else "  Mean p-value: N/A")
+        
+        # Aggregate data
+        aggregate_window_data[w]['escape_runs'] += n_esc
+        aggregate_window_data[w]['total_looms'] += len(loom_onset)
+        aggregate_p_values[w].extend(p_vals)
+    
+    print("\n" + "="*60 + "\n")
+    
+
+
+#%% AGGREGATE SUMMARY ACROSS ALL FILES
+print("\n\n" + "="*70)
+print("AGGREGATE SUMMARY - ALL FILES COMBINED")
+print("="*70)
+
+for w in sorted(aggregate_window_data.keys()):
+    n_esc = aggregate_window_data[w]['escape_runs']
+    total = aggregate_window_data[w]['total_looms']
+    p_vals = aggregate_p_values[w]
+    mean_p = np.mean(p_vals) if p_vals else np.nan
+    percent_esc = (n_esc / total * 100) if total > 0 else 0
+    
+    print(f"\nWindow: {w} after loom onset")
+    print(f"  Escape runs: {n_esc} / {total} ({percent_esc:.1f}%)")
+    print(f"  Mean p-value (escape runs only): {mean_p:.4f}" if not np.isnan(mean_p) else "  Mean p-value: N/A")
+    print(f"  Number of significant looms: {len(p_vals)}")
+
+print("\n" + "="*70)
+
+#%% AGGREGATE PLOT: BEST WINDOW ACROSS ALL FILES
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Plot 1: Percentage of escape runs per window
+ax = axes[0]
+windows_list = sorted(aggregate_window_data.keys())
+escape_percentages = [(aggregate_window_data[w]['escape_runs'] / aggregate_window_data[w]['total_looms'] * 100) 
+                      for w in windows_list]
+window_positions = [float(w.replace('s', '')) for w in windows_list]
+ax.plot(window_positions, escape_percentages, 'o-', linewidth=2, markersize=10, color='darkgreen')
+ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
+ax.set_ylabel('% Escape Runs', fontsize=12)
+ax.set_title('Escape Run Detection Rate Across All Files', fontsize=13, fontweight='bold')
+ax.grid(True, alpha=0.3)
+ax.set_xticks(window_positions)
+
+# Plot 2: Mean p-value per window
+ax = axes[1]
+mean_p_per_window = [np.mean(aggregate_p_values[w]) if aggregate_p_values[w] else np.nan 
+                     for w in windows_list]
+ax.plot(window_positions, mean_p_per_window, 'o-', linewidth=2, markersize=10, color='darkred')
+ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
+ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
+ax.set_ylabel('Mean p-value', fontsize=12)
+ax.set_title('Statistical Significance Across All Files', fontsize=13, fontweight='bold')
+ax.legend()
+ax.grid(True, alpha=0.3)
+ax.set_xticks(window_positions)
+
+plt.tight_layout()
+plt.savefig(plot_path + '/aggregate_window_analysis.png', dpi=300, bbox_inches='tight')
+plt.savefig(plot_path_pdf + '/aggregate_window_analysis.pdf', bbox_inches='tight')
+print("\nSaved: aggregate_window_analysis.png/pdf")
+plt.show()
+
+print("\n" + "="*70 + "\n")
     
             
-    '''slicing dataframe from esc_turn until end'''
-    df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
-    df_all = pd.concat([df_all,df_loom])
+#    '''slicing dataframe from esc_turn until end''' #I'm commenting everything here as I don't need right now!!
+#    df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
+#    df_all = pd.concat([df_all,df_loom])
 
-df_all = df_all.reset_index()
+#df_all = df_all.reset_index()
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
@@ -270,8 +545,8 @@ df_all = df_all.reset_index()
 #         df_all.loc[i,'escape']=0
 '''
 #%%
-df_grouped = df_all.groupby('index').mean() #all rows in df_all that have the same value in the 'index' column (which represent looms) are put into the same group and the mean is calculated
-df_grouped['loom'] = range(len(df_grouped)) #groupby('index') → groups rows by loom. .mean() → computes the fraction of flies engaging in this behaviours per loom.
+#df_grouped = df_all.groupby('index').mean() #all rows in df_all that have the same value in the 'index' column (which represent looms) are put into the same group and the mean is calculated
+#df_grouped['loom'] = range(len(df_grouped)) #groupby('index') → groups rows by loom. .mean() → computes the fraction of flies engaging in this behaviours per loom.
 #%%
 '''
 def plot_escape(group,raw_group, group_name):
