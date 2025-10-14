@@ -274,8 +274,8 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
             train_pre = []
             train_post = []
             
-            # Run 100 permutations
-            for perm in range(100):
+            # Run 1000 permutations
+            for perm in range(1000):
                 df_sample_pre = permutated_pre.sample(n=30, replace=True) #.sample(n=30) - Randomly picks 30 frames from permutated_pre (which has 120 frames)
                 row_pre = df_sample_pre.mean(axis=0)
                 train_pre.append(row_pre)
@@ -288,7 +288,7 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
             post_loom_mean_speed = permutated_post.mean()
             
             # T-test
-            t, p = ttest_ind(train_pre, train_post)
+            t, p = ttest_ind(train_pre, train_post, alternative='less')
             p_values_per_loom.append(p)
             
             #if (df_try_window.loc[loom_onset[loom], 'freeze_bout'] == 0):
@@ -300,7 +300,7 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
             #else:
             #    escape_runs_per_loom.append(0)
             
-            if (t < 0) & (p < 0.05) & (post_loom_mean_speed > speed_threshold): #new condition added by me following Mimi thesis!!!
+            if (p < 0.05) & (post_loom_mean_speed > speed_threshold): #new condition added by me following Mimi thesis!!!
                 df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
                 escape_runs_per_loom.append(1)
             else:
