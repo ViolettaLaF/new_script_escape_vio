@@ -44,9 +44,9 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_tsh_gal80_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = '39347_tsh_gal80_GFP_RNAi_KK-5minbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+group1_label = 'VLF-39347_tsh_gal80_GFP_RNAi_KK-5minbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
 #group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' 
 
 
@@ -55,7 +55,7 @@ group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 30#
+baseline  = 300#
 stimulation = 300 #600
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -232,6 +232,16 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
     window_results = {}
     window_p_values = {}  # to track p-values per window
     window_escape_runs = {}  # to track which looms are escapes per window
+    
+    # Calculate baseline speed statistics 
+    baseline_speed = df_try.loc[0:baseline_frames, 'velocity']
+    baseline_mean = baseline_speed.mean()
+    baseline_std = baseline_speed.std()
+    speed_threshold = baseline_mean + baseline_std
+
+    print(f"Baseline mean speed: {baseline_mean:.2f} mm/sec")
+    print(f"Baseline std: {baseline_std:.2f} mm/sec")
+    print(f"Speed threshold (mean + 1 SD): {speed_threshold:.2f} mm/sec")
 
     # Test each window
     for window_idx, window_start_frames in enumerate(window_starts_frames):
@@ -274,18 +284,27 @@ for filename in sorted(os.listdir(path+'/scored/')):  #folder with scored files 
                 row_post = df_sample_post.mean(axis=0) 
                 train_post.append(row_post)
             
+            # Calculate mean post-loom speed
+            post_loom_mean_speed = permutated_post.mean()
+            
             # T-test
             t, p = ttest_ind(train_pre, train_post)
             p_values_per_loom.append(p)
             
-            if (df_try_window.loc[loom_onset[loom], 'freeze_bout'] == 0):
-                if (t < 0) & (p < 0.05): #SCRUPOLI shouldn't be t>0!!!! 
-                    df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
-                    escape_runs_per_loom.append(1)
-                else:
-                    escape_runs_per_loom.append(0)
+            #if (df_try_window.loc[loom_onset[loom], 'freeze_bout'] == 0):
+            #    if (t < 0) & (p < 0.05): #SCRUPOLI shouldn't be t>0!!!! 
+            #        df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
+            #        escape_runs_per_loom.append(1)
+            #    else:
+            #        escape_runs_per_loom.append(0)
+            #else:
+            #    escape_runs_per_loom.append(0)
+            
+            if (t < 0) & (p < 0.05) & (post_loom_mean_speed > speed_threshold): #new condition added by me following Mimi thesis!!!
+                df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
+                escape_runs_per_loom.append(1)
             else:
-                escape_runs_per_loom.append(0)
+                escape_runs_per_loom.append(0)            
         
         # Store results
         window_key = f"{window_time_sec:.1f}s"
