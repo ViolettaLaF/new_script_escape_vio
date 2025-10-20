@@ -253,7 +253,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
             train_pre = []
             train_post = []
             
-            for perm in range(100):
+            for perm in range(10):
                 df_sample_pre = permutated_pre.sample(n=30, replace=True)
                 row_pre = df_sample_pre.mean(axis=0)
                 train_pre.append(row_pre)
@@ -268,8 +268,14 @@ for filename in sorted(os.listdir(path+'/scored/')):
             p_values_per_loom.append(p)
             
             if (p < 0.05) & (post_loom_mean_speed > speed_threshold):
-                df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
-                escape_runs_per_loom.append(1)
+                # NEW: Check if there was a jump in the window
+                has_jump = df_try_window.loc[loom_onset[loom]:(loom_offset[loom]+window_end_frames), 'jumps'].sum() > 0
+                            
+                if not has_jump:  # Only classify as escape if no jump
+                    df_try_window.loc[loom_offset[loom], 'esc_run_window'] = 1
+                    escape_runs_per_loom.append(1)
+                else:
+                    escape_runs_per_loom.append(0)
             else:
                 escape_runs_per_loom.append(0)
         
@@ -407,61 +413,83 @@ for filename in sorted(os.listdir(path+'/scored/')):
     print(f"Saved: speed_profiles_windows_{filename_base}.png/pdf")
     plt.show()
 
-    #%% MODIFICATION 2: INDIVIDUAL EXAMPLES
+    #%% PLOT: INDIVIDUAL EXAMPLES AS SINGLE TRACES
     example_window = '2.0s'  # Change this to your chosen window
-
+    n_examples_to_plot = 2  # Number of examples per category
+    
     if example_window in window_results:
         escape_indices = [i for i in range(len(window_escape_runs[example_window])) 
                          if window_escape_runs[example_window][i] == 1]
         non_escape_indices = [i for i in range(len(window_escape_runs[example_window])) 
                              if window_escape_runs[example_window][i] == 0]
         
-        n_examples = min(5, len(escape_indices), len(non_escape_indices))
+        n_escape_examples = min(n_examples_to_plot, len(escape_indices))
+        n_non_escape_examples = min(n_examples_to_plot, len(non_escape_indices))
         
-        if n_examples > 0:
-            fig, axes = plt.subplots(2, 1, figsize=(12, 8))
+        # Plot escape examples (one per subplot)
+        if n_escape_examples > 0:
+            fig, axes = plt.subplots(n_escape_examples, 1, figsize=(12, 4*n_escape_examples))
+            if n_escape_examples == 1:
+                axes = [axes]  # Make it iterable
             
-            # Escape examples
-            ax = axes[0]
-            for i in range(n_examples):
+            for i in range(n_escape_examples):
                 idx = escape_indices[i]
                 loom = loom_offset[idx]
                 speed_trace = df_try.loc[loom-120:loom+600, 'velocity'].values
+                
                 if len(speed_trace) == 721:
+                    ax = axes[i]
                     time_points = np.arange(len(speed_trace)) / frame_rate - 2
-                    ax.plot(time_points, speed_trace, alpha=0.7, linewidth=1.5, label=f'Escape {i+1}')
+                    ax.plot(time_points, speed_trace, linewidth=2, color='red')
+                    
+                    ax.axhline(y=speed_threshold, color='green', linestyle='--', alpha=0.5, linewidth=2, label='Speed threshold')
+                    ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=2, label='Loom onset')
+                    ax.set_ylabel('Velocity (mm/sec)', fontsize=12, fontweight='bold')
+                    ax.set_title(f'Escape Run Example {i+1} (Loom #{idx+1})', fontsize=13, fontweight='bold')
+                    ax.legend(fontsize=10)
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xlim(-2, 10)
+                    
+                    if i == n_escape_examples - 1:  # Only bottom plot
+                        ax.set_xlabel('Time relative to loom onset (sec)', fontsize=12, fontweight='bold')
             
-            ax.axhline(y=speed_threshold, color='green', linestyle='--', alpha=0.5, linewidth=2, label='Speed threshold')
-            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=2, label='Loom onset')
-            ax.set_ylabel('Velocity (mm/sec)', fontsize=12)
-            ax.set_title(f'Individual Escape Run Examples (Window: {example_window})', fontsize=13, fontweight='bold')
-            ax.legend(fontsize=9, ncol=3)
-            ax.grid(True, alpha=0.3)
-            ax.set_xlim(-2, 10)
+            plt.tight_layout()
+            plt.savefig(plot_path + f'/individual_escape_examples_{filename_base}.png', dpi=300, bbox_inches='tight')
+            plt.savefig(plot_path_pdf + f'/individual_escape_examples_{filename_base}.pdf', bbox_inches='tight')
+            print(f"Saved: individual_escape_examples_{filename_base}.png/pdf")
+            plt.show()
+        
+        # Plot non-escape examples (one per subplot)
+        if n_non_escape_examples > 0:
+            fig, axes = plt.subplots(n_non_escape_examples, 1, figsize=(12, 4*n_non_escape_examples))
+            if n_non_escape_examples == 1:
+                axes = [axes]  # Make it iterable
             
-            # Non-escape examples
-            ax = axes[1]
-            for i in range(n_examples):
+            for i in range(n_non_escape_examples):
                 idx = non_escape_indices[i]
                 loom = loom_offset[idx]
                 speed_trace = df_try.loc[loom-120:loom+600, 'velocity'].values
+                
                 if len(speed_trace) == 721:
+                    ax = axes[i]
                     time_points = np.arange(len(speed_trace)) / frame_rate - 2
-                    ax.plot(time_points, speed_trace, alpha=0.7, linewidth=1.5, label=f'Non-escape {i+1}')
-            
-            ax.axhline(y=speed_threshold, color='green', linestyle='--', alpha=0.5, linewidth=2, label='Speed threshold')
-            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=2, label='Loom onset')
-            ax.set_xlabel('Time relative to loom onset (sec)', fontsize=12)
-            ax.set_ylabel('Velocity (mm/sec)', fontsize=12)
-            ax.set_title(f'Individual Non-Escape Examples (Window: {example_window})', fontsize=13, fontweight='bold')
-            ax.legend(fontsize=9, ncol=3)
-            ax.grid(True, alpha=0.3)
-            ax.set_xlim(-2, 10)
+                    ax.plot(time_points, speed_trace, linewidth=2, color='blue')
+                    
+                    ax.axhline(y=speed_threshold, color='green', linestyle='--', alpha=0.5, linewidth=2, label='Speed threshold')
+                    ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=2, label='Loom onset')
+                    ax.set_ylabel('Velocity (mm/sec)', fontsize=12, fontweight='bold')
+                    ax.set_title(f'Non-Escape Example {i+1} (Loom #{idx+1})', fontsize=13, fontweight='bold')
+                    ax.legend(fontsize=10)
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xlim(-2, 10)
+                    
+                    if i == n_non_escape_examples - 1:  # Only bottom plot
+                        ax.set_xlabel('Time relative to loom onset (sec)', fontsize=12, fontweight='bold')
             
             plt.tight_layout()
-            plt.savefig(plot_path + f'/individual_examples_{filename_base}.png', dpi=300, bbox_inches='tight')
-            plt.savefig(plot_path_pdf + f'/individual_examples_{filename_base}.pdf', bbox_inches='tight')
-            print(f"Saved: individual_examples_{filename_base}.png/pdf")
+            plt.savefig(plot_path + f'/individual_non_escape_examples_{filename_base}.png', dpi=300, bbox_inches='tight')
+            #plt.savefig(plot_path_pdf + f'/individual_non_escape_examples_{filename_base}.pdf', bbox_inches='tight')
+            print(f"Saved: individual_non_escape_examples_{filename_base}.png/pdf")
             plt.show()
 
     #%% SUMMARY FOR THIS FILE
