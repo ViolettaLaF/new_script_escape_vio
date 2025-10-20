@@ -196,6 +196,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
             df_try.loc[loom_offset[i], 'esc_freeze'] = 1
     
     #%% SLIDING WINDOW ANALYSIS FOR ESCAPE RUNNING
+    '''checking running escape'''
     window_size_sec = 2
     window_size_frames = window_size_sec * frame_rate
 
@@ -253,7 +254,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
             train_pre = []
             train_post = []
             
-            for perm in range(10):
+            for perm in range(1000):
                 df_sample_pre = permutated_pre.sample(n=30, replace=True)
                 row_pre = df_sample_pre.mean(axis=0)
                 train_pre.append(row_pre)
@@ -353,9 +354,9 @@ for filename in sorted(os.listdir(path+'/scored/')):
 
     plt.tight_layout()
     filename_base = filename.replace('_frames.csv', '')
-    plt.savefig(plot_path + f'/sliding_window_analysis_{filename_base}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(plot_path_pdf + f'/sliding_window_analysis_{filename_base}.pdf', bbox_inches='tight')
-    print(f"Saved: sliding_window_analysis_{filename_base}.png/pdf")
+    plt.savefig(plot_path + f'/sliding_window_{filename_base}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(plot_path_pdf + f'/sliding_window_{filename_base}.pdf', bbox_inches='tight')
+    print(f"Saved: sliding_window_{filename_base}.png/pdf")
     plt.show()
 
     #%% MODIFICATION 1: PLOT SPEED PROFILES TO 10 SECONDS
@@ -408,9 +409,9 @@ for filename in sorted(os.listdir(path+'/scored/')):
         ax.set_xlim(-2, 10)  # CHANGED: Show up to 10 seconds
 
     plt.tight_layout()
-    plt.savefig(plot_path + f'/speed_profiles_windows_{filename_base}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(plot_path_pdf + f'/speed_profiles_windows_{filename_base}.pdf', bbox_inches='tight')
-    print(f"Saved: speed_profiles_windows_{filename_base}.png/pdf")
+    plt.savefig(plot_path + f'/speed_profiles_{filename_base}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(plot_path_pdf + f'/speed_profiles_{filename_base}.pdf', bbox_inches='tight')
+    print(f"Saved: speed_profiles_{filename_base}.png/pdf")
     plt.show()
 
     #%% PLOT: INDIVIDUAL EXAMPLES AS SINGLE TRACES
@@ -454,9 +455,9 @@ for filename in sorted(os.listdir(path+'/scored/')):
                         ax.set_xlabel('Time relative to loom onset (sec)', fontsize=12, fontweight='bold')
             
             plt.tight_layout()
-            plt.savefig(plot_path + f'/individual_escape_examples_{filename_base}.png', dpi=300, bbox_inches='tight')
-            plt.savefig(plot_path_pdf + f'/individual_escape_examples_{filename_base}.pdf', bbox_inches='tight')
-            print(f"Saved: individual_escape_examples_{filename_base}.png/pdf")
+            plt.savefig(plot_path + f'/individual_esc_{filename_base}.png', dpi=300, bbox_inches='tight')
+            plt.savefig(plot_path_pdf + f'/individual_esc_{filename_base}.pdf', bbox_inches='tight')
+            print(f"Saved: individual_esc_{filename_base}.png/pdf")
             plt.show()
         
         # Plot non-escape examples (one per subplot)
@@ -487,9 +488,9 @@ for filename in sorted(os.listdir(path+'/scored/')):
                         ax.set_xlabel('Time relative to loom onset (sec)', fontsize=12, fontweight='bold')
             
             plt.tight_layout()
-            plt.savefig(plot_path + f'/individual_non_escape_examples_{filename_base}.png', dpi=300, bbox_inches='tight')
+            plt.savefig(plot_path + f'/individual_non_esc_{filename_base}.png', dpi=300, bbox_inches='tight')
             #plt.savefig(plot_path_pdf + f'/individual_non_escape_examples_{filename_base}.pdf', bbox_inches='tight')
-            print(f"Saved: individual_non_escape_examples_{filename_base}.png/pdf")
+            print(f"Saved: individual_non_esc_{filename_base}.png/pdf")
             plt.show()
 
     #%% SUMMARY FOR THIS FILE
