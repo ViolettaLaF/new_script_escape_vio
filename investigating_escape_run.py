@@ -218,55 +218,54 @@ for filename in sorted(os.listdir(path+'/scored/')):
         elif df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'freeze_bout'].sum() > 0:
             df_try.loc[loom_offset[i], 'esc_freeze'] = 1
 
-#%% Plot to visualize smoothing effect (for first file only)
-    if filename == sorted(os.listdir(path+'/scored/'))[0]:  # Only for first file
+#%% Plot to visualize smoothing effect 
         # Pick a random loom to visualize
-        if len(loom_offset) > 0:
-            test_loom = loom_offset[0]
-            
-            fig, axes = plt.subplots(3, 1, figsize=(14, 10))
-            
-            # Plot 1: Original velocity
-            ax = axes[0]
-            window_data = df_try.loc[test_loom-120:test_loom+600]
-            time_points = np.arange(len(window_data)) / frame_rate - 2
-            ax.plot(time_points, window_data['velocity'].values, 'k-', linewidth=1, alpha=0.5, label='Original')
-            ax.scatter(time_points[window_data['jumps'].values == 1], 
-                      window_data.loc[window_data['jumps'] == 1, 'velocity'].values,
-                      color='red', s=50, zorder=5, label='Jumps')
-            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-            ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
-            ax.set_title('Original Velocity with Jumps', fontsize=12, fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            ax.set_xlim(-2, 10)
-            
-            # Plot 2: Cleaned velocity (jumps removed)
-            ax = axes[1]
-            ax.plot(time_points, window_data['velocity_clean'].values, 'b-', linewidth=1, label='Cleaned (jumps removed)')
-            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-            ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
-            ax.set_title('Cleaned Velocity (Jumps Removed & Interpolated)', fontsize=12, fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            ax.set_xlim(-2, 10)
-            
-            # Plot 3: Smoothed velocity
-            ax = axes[2]
-            ax.plot(time_points, window_data['velocity_smooth'].values, 'g-', linewidth=2, label='Smoothed (7-frame avg)')
-            ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-            ax.set_xlabel('Time relative to loom onset (sec)', fontsize=11)
-            ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
-            ax.set_title('Final Smoothed Velocity', fontsize=12, fontweight='bold')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-            ax.set_xlim(-2, 10)
-            
-            plt.tight_layout()
-            plt.savefig(plot_path + '/velocity_smoothing_demo.png', dpi=300, bbox_inches='tight')
-            plt.savefig(plot_path_pdf + '/velocity_smoothing_demo.pdf', bbox_inches='tight')
-            print("Saved: velocity_smoothing_demo.png/pdf (check this to verify smoothing!)")
-            plt.show()
+    if len(loom_offset) > 0:
+        test_loom = loom_offset[0]
+        
+        fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+        
+        # Plot 1: Original velocity
+        ax = axes[0]
+        window_data = df_try.loc[test_loom-120:test_loom+600]
+        time_points = np.arange(len(window_data)) / frame_rate - 2
+        ax.plot(time_points, window_data['velocity'].values, 'k-', linewidth=1, alpha=0.5, label='Original')
+        ax.scatter(time_points[window_data['jumps'].values == 1], 
+                  window_data.loc[window_data['jumps'] == 1, 'velocity'].values,
+                  color='red', s=50, zorder=5, label='Jumps')
+        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
+        ax.set_title('Original Velocity with Jumps', fontsize=12, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(-2, 10)
+        
+        # Plot 2: Cleaned velocity (jumps removed)
+        ax = axes[1]
+        ax.plot(time_points, window_data['velocity_clean'].values, 'b-', linewidth=1, label='Cleaned (jumps removed)')
+        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
+        ax.set_title('Cleaned Velocity (Jumps Removed)', fontsize=12, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(-2, 10)
+        
+        # Plot 3: Smoothed velocity
+        ax = axes[2]
+        ax.plot(time_points, window_data['velocity_smooth'].values, 'g-', linewidth=2, label='Smoothed (7-frame avg)')
+        ax.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax.set_xlabel('Time relative to loom onset (sec)', fontsize=11)
+        ax.set_ylabel('Velocity (mm/sec)', fontsize=11)
+        ax.set_title('Final Smoothed Velocity', fontsize=12, fontweight='bold')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_xlim(-2, 10)
+        
+        plt.tight_layout()
+        filename_base = filename.replace('_frames.csv', '')
+        plt.savefig(plot_path + f'/velocity_smoothing_demo_{filename_base}.png', dpi=300, bbox_inches='tight')
+        plt.savefig(plot_path_pdf + f'/velocity_smoothing_demo_{filename_base}.pdf', bbox_inches='tight')
+        print(f"Saved: velocity_smoothing_demo_{filename_base}.png/pdf")
     
     #%% SLIDING WINDOW ANALYSIS FOR ESCAPE RUNNING
     '''checking running escape'''
@@ -327,7 +326,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
             train_pre = []
             train_post = []
             
-            for perm in range(10):
+            for perm in range(1000):
                 df_sample_pre = permutated_pre.sample(n=30, replace=True)
                 row_pre = df_sample_pre.mean(axis=0)
                 train_pre.append(row_pre)
@@ -664,12 +663,22 @@ for temp_file in sorted(os.listdir(plot_path + '/temp_data')):
         window_escape_runs = data['window_escape_runs']
         loom_offset = data['loom_offset']
         
-        # Load the scored file
+                # Load the scored file
         df_file = pd.read_csv(path+'/scored/'+filename)
+        
+        # Need to create velocity_smooth for this reloaded file
+        df_file['velocity_clean'] = df_file['velocity'].copy()
+        df_file.loc[df_file['jumps'] == 1, 'velocity_clean'] = np.nan
+        #for idx in df_file[df_file['jumps'] == 1].index:
+        #    if idx >= 2:
+        #        df_file.loc[idx-2:idx-1, 'velocity_clean'] = np.nan
+        #    if idx <= len(df_file) - 3:
+        #        df_file.loc[idx+1:idx+2, 'velocity_clean'] = np.nan
+        df_file['velocity_smooth'] = df_file['velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
         
         # Extract speed traces
         for i, loom in enumerate(loom_offset):
-            speed_window = df_file.loc[loom-120:loom+600, 'velocity_smooth'].values  # 2 sec before to 10 sec after
+            speed_window = df_file.loc[loom-120:loom+600, 'velocity_smooth'].values
             if len(speed_window) == 721:
                 if window_escape_runs[final_window][i] == 1:
                     all_escape_speeds.append(speed_window)
