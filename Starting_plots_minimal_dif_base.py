@@ -64,10 +64,6 @@ freeze_color = 'darkcyan'
 jump_color = 'darkslateblue'
 
 
-
-#Size scale
-arena_raio_mm = 15
-
 #TIME SCALES
 frame_rate = 60
 
@@ -84,8 +80,6 @@ number_of_looms= 20 #20
 loom_duration_sec = 0.5
 loom_duration  = loom_duration_sec * frame_rate
 
-zoom_before_loom_onset = 120
-zoom_after_loom_onset = 180
 
 #For line plots
 bin_size_sec = 0.5
@@ -97,13 +91,6 @@ my_label= np.arange(0, limit_min + 1).tolist() #  labels in min
 bin_size_zoom_sec = 0.05
 bin_size_zoom = bin_size_zoom_sec * frame_rate
 
-#Zoom violin plots data interval selec 
-before_loom_start = 60
-before_loom_end = int(zoom_before_loom_onset)
-before_loom_interval = int(before_loom_end - before_loom_start)
-
-after_loom_start = int(zoom_before_loom_onset + loom_duration)
-after_loom_end = int(after_loom_start + before_loom_interval)
 
 #Upper treshold for speed 2D
 jump_velocity = 75
@@ -189,22 +176,9 @@ GROUP DATAFRAMES FOR PLOTS
 
 line_plots_df = pd.DataFrame()
 violin_plots_df = pd.DataFrame()
-zoom_line_plots_df = pd.DataFrame()
-zoom_violin_plots_df = pd.DataFrame()
 delta_behavior_plots_df = pd.DataFrame()
 delta_behavior_violins_df = pd.DataFrame()
-behavior_onset_df = pd.DataFrame()
-speed_behavior_probability_df = pd.DataFrame()
-speed_behavior_probability_df['speeds'] = np.array(range(0, 21, 2)) 
 
-startles_per_loom_probabilty_df = pd.DataFrame()
-loom_list =  np.array(range(1, number_of_looms+1))
-loom_list_doubledigit = []
-for i in loom_list:
-    double = "{0:0=2d}".format(i)
-    loom_list_doubledigit.append(double)
-    
-startles_per_loom_probabilty_df['loom'] = loom_list_doubledigit
 group_n = 0
 number_flies = []
 number_looms = []
@@ -273,76 +247,6 @@ def line_plots_variables(behavior, df_behavior):
     line_plots_df['group'+(str(group_n))+'_'+df_behavior+'_mean'] = (behavior['mean'].groupby(behavior.index // bin_size).mean())
     line_plots_df['group'+(str(group_n))+'_'+df_behavior+'_sem'] = behavior['sem'].groupby(behavior.index // bin_size).mean()
 
-
-
-#ZOOM AROUND LOOM FUNCTION TO GET MEAN TIME 'BEHAVIOR' DURING BASELINE OR STIMULATION PER FLY
-def zoom_violin_plots_variables(variable, behavior, column_df):
-    before_variable_behavior = variable[behavior][before_loom_start:before_loom_end].mean(axis=0).reset_index(drop=True)
-    after_variable_behavior = variable[behavior][after_loom_start:after_loom_end].mean(axis=0).reset_index(drop=True)
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_before'] = before_variable_behavior
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_after'] = after_variable_behavior
-    zoom_violin_plots_df['group'+(str(group_n))+'_'+column_df+'_delta'] = after_variable_behavior - before_variable_behavior
-
-
-
-#ZOOM AROUND LOOM FUNCTION TO GET MEAN TIME 'BEHAVIOR' ACROSS THE GROUP
-def zoom_line_plots_variables(variable, behavior, column_df):
-    variable[(str(behavior))+'_mean'] = variable[behavior].mean(axis=1)
-    variable[(str(behavior))+'_sem'] = variable[behavior].sem(axis=1)
-    zoom_line_plots_df['group'+(str(group_n))+'_'+column_df+'_mean'] = (variable[(str(behavior))+'_mean'].groupby(variable.index // bin_size_zoom).mean())
-    zoom_line_plots_df['group'+(str(group_n))+'_'+column_df+'_sem'] = (variable[(str(behavior))+'_sem'].groupby(variable.index // bin_size_zoom).mean())
-    
-
-#SELECTING FIRST LOOM DATA
-def select_first_loom(variable_list):
-    first_loom_data = []
-    for i in variable_list:
-        loom_count = i[-2:]
-        if loom_count == '01':
-            first_loom_data.append(i)
-        
-    return first_loom_data
-
-#SELECTING FLIES BASED ON THE BEHAVIOR AROUND LOOM
-def same_behavior_around_loom(behavior):
-    behaving = []
-    switching = []
-    for column in behavior:
-        if (behavior[column].mean() == 1):
-            behaving.append(str(column))
-        else:
-            switching.append(str(column))
-    return behaving, switching
-    
-def before_loom_behavior(behavior):
-    behaving = []
-    notbehaving = []
-    for column in behavior:
-        if (behavior[column][3] == 1):
-            behaving.append(str(column))
-        elif (behavior[column][3] == 0):
-            notbehaving.append(str(column))
-    return behaving, notbehaving
-    
-def during_loom_behavior(behavior):
-    behaving = []
-    notbehaving = []
-    for column in behavior:
-        if ((behavior[column][4:9].sum()) > 0):
-            behaving.append(str(column))
-        elif ((behavior[column][4:9].sum()) == 0):
-            notbehaving.append(str(column))
-    return behaving, notbehaving
-    
-def after_loom_behavior(behavior):
-    behaving = []
-    notbehaving = []
-    for column in behavior:
-        if (behavior[column][9] == 1):
-            behaving.append(str(column))
-        elif (behavior[column][9] == 0):
-            notbehaving.append(str(column))
-    return behaving, notbehaving
 #%%%%
 
 '''
@@ -378,30 +282,7 @@ for group in groups:
     '''ZOOM VARIABLES'''
     looming_onset = pd.DataFrame()
     looming_offset = pd.DataFrame()
-    zoom_looming = pd.DataFrame()
-    zoom_redled = pd.DataFrame()
-    zoom_greenled = pd.DataFrame()
-    zoom_fly_x_norm_mm = pd.DataFrame()
-    zoom_fly_y_norm_mm = pd.DataFrame()
-    zoom_pixelchange = pd.DataFrame()
-    zoom_velocity = pd.DataFrame()
-    zoom_walk = pd.DataFrame()
-    zoom_walk_bout = pd.DataFrame()
-    zoom_freeze_bout = pd.DataFrame()
-    zoom_jumps = pd.DataFrame()
-    zoom_jumps_bout = pd.DataFrame()
-    zoom_low_vel = pd.DataFrame()
-    zoom_low_vel_bout = pd.DataFrame()
-    zoom_pauses = pd.DataFrame()
-    zoom_walk_speed = pd.DataFrame()
-    zoom_walk_speed_bout = pd.DataFrame()
-    zoom_speed2d = pd.DataFrame()
-    zoom_pauses_diff = pd.DataFrame()
-    inter_looming = pd.DataFrame()
-    inter_loom_walk_bout = pd.DataFrame()
-    inter_loom_freeze_bout = pd.DataFrame()
-    inter_loom_low_vel_bout = pd.DataFrame()
-    first_loom_zoom_speed2d = pd.DataFrame()
+
     
     for filename in glob.glob(os.path.join(path , str(group + '*'))):
         fly_df = pd.read_csv(filename, ',',  index_col=0)
@@ -449,76 +330,9 @@ for group in groups:
         looming_onset[str(flyid)] = fly_df.loc[fly_df['looming_flip'] == 1].index.values.astype(int)
         looming_offset[str(flyid)] = fly_df.loc[fly_df['looming_flip'] == -1].index.values.astype(int)
         loom_counter = 0
-        for i in looming_onset[str(flyid)]:
-            loom_counter = loom_counter + 1
-            zoom_start = i - zoom_before_loom_onset
-            zoom_end = i + zoom_after_loom_onset -1
-        
-            zoom_looming[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['looming_bout'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_redled[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['redled'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_greenled[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['greenled'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_fly_x_norm_mm[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['fly_x_norm_mm'].loc[zoom_start:zoom_end].values.astype(float)
-            zoom_fly_y_norm_mm[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['fly_y_norm_mm'].loc[zoom_start:zoom_end].values.astype(float)
-            zoom_pixelchange[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['pixelchange'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_velocity[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['velocity'].loc[zoom_start:zoom_end].values.astype(float)
-            zoom_walk[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['walk'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_walk_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['walk_bout'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_freeze_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['freeze_bout'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_jumps[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['jumps'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_jumps_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['jumps_bout'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_low_vel[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['low_vel'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_low_vel_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['low_vel_bout'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_pauses[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['pauses'].loc[zoom_start:zoom_end].values.astype(int)
-            zoom_walk_speed[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['walk_speed'].loc[zoom_start:zoom_end].values.astype(float)
-            zoom_walk_speed_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['walk_speed_bout'].loc[zoom_start:zoom_end].values.astype(float)
-            zoom_speed2d[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['speed2d'].loc[zoom_start:zoom_end].values.astype(float)
-            if loom_counter == 1:
-                  first_loom_zoom_speed2d[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['speed2d'].loc[zoom_start:zoom_end].values.astype(float)      
-            
-            zoom_pauses_diff[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = fly_df['pauses_flip'].loc[zoom_start:zoom_end].values.astype(int)
-            for i in range(len(zoom_pauses_diff)):
-                if zoom_pauses_diff[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))][i]==1:
-                    pauses_loom_onset.append(i)
-        
-        looming_onset_extended = looming_onset.copy()
-        looming_onset_extended.loc[number_of_looms] = baseline_frames + stimulation_frames -1
-
-
-        loom_counter = 0
-        for i in range(0,number_of_looms):
-            loom_counter = loom_counter + 1
-            start = looming_onset_extended[str(flyid)][i]
-            end = looming_onset_extended[str(flyid)][i+1]
-            
-            after_loom_looming = looming[str(flyid)].loc[start:start+zoom_after_loom_onset-1].values.tolist()
-            before_loom_looming = looming[str(flyid)].loc[end-zoom_before_loom_onset:end-1].values.tolist()
-            looming_list = after_loom_looming.copy()
-            looming_list.extend(before_loom_looming)
-            inter_looming[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = pd.Series(looming_list)
-            
-            after_loom_walk_bout = walk_bout[str(flyid)].loc[start:start+zoom_after_loom_onset-1].values.tolist()
-            before_loom_walk_bout = walk_bout[str(flyid)].loc[end-zoom_before_loom_onset:end-1].values.tolist()
-            walk_bout_list = after_loom_walk_bout.copy()
-            walk_bout_list.extend(before_loom_walk_bout)
-            inter_loom_walk_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = pd.Series(walk_bout_list)
-            
-            after_loom_freeze_bout = freeze_bout[str(flyid)].loc[start:start+zoom_after_loom_onset-1].values.tolist()
-            before_loom_freeze_bout = freeze_bout[str(flyid)].loc[end-zoom_before_loom_onset:end-1].values.tolist()
-            freeze_bout_list = after_loom_freeze_bout.copy()
-            freeze_bout_list.extend(before_loom_freeze_bout)
-            inter_loom_freeze_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = pd.Series(freeze_bout_list)
-            
-            after_loom_low_vel_bout = low_vel_bout[str(flyid)].loc[start:start+zoom_after_loom_onset-1].values.tolist()
-            before_loom_low_vel_bout = low_vel_bout[str(flyid)].loc[end-zoom_before_loom_onset:end-1].values.tolist()
-            low_vel_bout_list = after_loom_low_vel_bout.copy()
-            low_vel_bout_list.extend(before_loom_low_vel_bout)
-            inter_loom_low_vel_bout[str(flyid)+'_loom_n='+str("{0:0=2d}".format(loom_counter))] = pd.Series(low_vel_bout_list)
-            
-
             
     number_flies.append(len(looming.columns))
-    number_looms.append(len(zoom_looming.columns))
-    number_inter_looms = len(inter_looming.columns)
+
     
     
     
@@ -581,21 +395,7 @@ for group in groups:
     low_vel_baseline_bined = (low_vel_bout_bined[:(int(baseline_frames/bin_size))]).round(0)
     low_vel_stimulation_bined = (low_vel_bout_bined[(int(baseline_frames/bin_size)):]).round(0)
     
-    zoom_bined_looming = (zoom_looming.groupby(zoom_walk_bout.index // bin_size).mean()).round(0)
-    zoom_bined_velocity = (zoom_velocity.groupby(zoom_velocity.index // bin_size).mean()).round(0)
-    zoom_bined_walk_bout = (zoom_walk_bout.groupby(zoom_walk_bout.index // bin_size).mean())
-    zoom_bined_freeze_bout = (zoom_freeze_bout.groupby(zoom_freeze_bout.index // bin_size).mean())
-    zoom_bined_low_vel_bout = (zoom_low_vel_bout.groupby(zoom_low_vel_bout.index // bin_size).mean())
-    zoom_bined_jumps_bout = (zoom_jumps_bout.groupby(zoom_jumps_bout.index // bin_size).mean())
-    zoom_bined_pauses = (zoom_pauses.groupby(zoom_pauses.index // bin_size).mean())
-    zoom_bined_fly_x_norm_mm = (zoom_fly_x_norm_mm.groupby(zoom_fly_x_norm_mm.index // bin_size).mean())
-    zoom_bined_fly_y_norm_mm = (zoom_fly_y_norm_mm.groupby(zoom_fly_y_norm_mm.index // bin_size).mean())
-    inter_loom_looming_bined = (inter_looming.groupby(inter_looming.index // bin_size).mean())
-    inter_loom_walk_bout_bined = (inter_loom_walk_bout.groupby(inter_loom_walk_bout.index // bin_size).mean())
-    inter_loom_freeze_bout_bined = (inter_loom_freeze_bout.groupby(inter_loom_freeze_bout.index // bin_size).mean())
-    inter_loom_low_vel_bout_bined = (inter_loom_low_vel_bout.groupby(inter_loom_low_vel_bout.index // bin_size).mean())
-    
-    
+
     '''BASELINE - STIMULATION VARIABLES '''
     
     walk_bout_baseline = walk_bout[:baseline_frames].drop(columns=['mean', 'sem']).reset_index(drop=True)
@@ -604,186 +404,6 @@ for group in groups:
     freeze_bout_stimulation = freeze_bout[baseline_frames:].drop(columns=['mean', 'sem']).reset_index(drop=True)
     low_vel_bout_baseline = low_vel_bout[:baseline_frames].drop(columns=['mean', 'sem']).reset_index(drop=True)
     low_vel_bout_stimulation = low_vel_bout[baseline_frames:].drop(columns=['mean', 'sem']).reset_index(drop=True)
-
-
-
-#%%  
-
-    '''SELECTING FLIES DEPENDENT ON THE BEHAVIOR BEFORE AND AFTER LOOM - 0.5SEC-0SEC BEFORE LOOM ONSET & 2.5SEC-3SEC AFTER LOOM ONSET'''
-    
-    walker_all, walker_break = same_behavior_around_loom(zoom_bined_walk_bout)
-    freezer_all, freezer_break = same_behavior_around_loom(zoom_bined_freeze_bout)
-    low_vel_all, low_vel_break = same_behavior_around_loom(zoom_bined_low_vel_bout)
-    
-    walker_x_x, notwalker_x_x = before_loom_behavior(zoom_bined_walk_bout)
-    freezer_x_x, notfreezer_x_x = before_loom_behavior(zoom_bined_freeze_bout)
-    low_vel_x_x, notlow_vel_x_x = before_loom_behavior(zoom_bined_low_vel_bout)
-    
-    walker_x_walker, walker_x_notwalker = after_loom_behavior(zoom_bined_walk_bout[walker_x_x])
-    freezer_x_freezer, freezer_x_notfreezer = after_loom_behavior(zoom_bined_freeze_bout[freezer_x_x])
-    low_vel_x_low_vel, low_vel_x_notlow_vel = after_loom_behavior(zoom_bined_low_vel_bout[low_vel_x_x])
-
-    notwalker_x_walker, notwalker_x_notwalker = after_loom_behavior(zoom_bined_walk_bout[notwalker_x_x])
-    notfreezer_x_freezer, notfreezer_x_notfreezer = after_loom_behavior(zoom_bined_freeze_bout[notfreezer_x_x])
-    notlow_vel_x_low_vel, notlow_vel_x_notlow_vel = after_loom_behavior(zoom_bined_low_vel_bout[notlow_vel_x_x])
-
-    walker_pauser_walker, walker_notpauser_walker = during_loom_behavior(zoom_bined_pauses[walker_x_walker])
-    walker_pauser_x, walker_notpauser_x = during_loom_behavior(zoom_bined_pauses[walker_x_x])
-    walker_pauser_jumper_x, walker_pauser_notjumper_x = during_loom_behavior(zoom_bined_jumps_bout[walker_pauser_x])
-    
-    walker_x_freezer, walker_x_notfreezer = after_loom_behavior(zoom_bined_freeze_bout[walker_x_x])
-    walker_pauser_freezer, walker_notpauser_freezer = during_loom_behavior(zoom_bined_pauses[walker_x_freezer])
-    walker_jumper_freezer, walker_notjumper_freezer = during_loom_behavior(zoom_bined_jumps_bout[walker_x_freezer])
-    
-    walker_jumper_x, walker_notjumper_x = during_loom_behavior(zoom_bined_jumps_bout[walker_x_x])
-    walker_jumper_pauser_x, walker_jumper_notpauser_x = during_loom_behavior(zoom_bined_pauses[walker_jumper_x]) 
-    walker_jumper_walker, walker_notjumper_walker = during_loom_behavior(zoom_bined_jumps_bout[walker_x_walker])
-
-    freezer_jumper_x, freezer_notjumper_x = during_loom_behavior(zoom_bined_jumps_bout[freezer_x_x])
-
-
-    x_jumper_x, x_notjumper_x = during_loom_behavior(zoom_bined_jumps_bout)
-    notfreezer_jumper_freezer, notfreezer_notjumper_freezer = during_loom_behavior(zoom_bined_jumps_bout[notfreezer_x_freezer])
-    notfreezer_jumper_notfreezer, notfreezer_notjumper_notfreezer = during_loom_behavior(zoom_bined_jumps_bout[notfreezer_x_notfreezer])
-    notfreezer_jumper_x, notfreezer_notjumper_x = during_loom_behavior(zoom_bined_jumps_bout[notfreezer_x_x])
-    
-    x_jumper_freezer, x_jumper_notfreezer = after_loom_behavior(zoom_bined_freeze_bout[x_jumper_x])
-    x_notjumper_freezer, x_notjumper_notfreezer = after_loom_behavior(zoom_bined_freeze_bout[x_notjumper_x])
-    
-    
-    startler_jumps = []
-    startler_walk = []
-    startler_low_vel = []
-    for column in zoom_bined_freeze_bout:
-        if (zoom_bined_freeze_bout[column][3] == 1) & (zoom_bined_freeze_bout[column][9] == 1) & (zoom_bined_freeze_bout[column].mean() != 1):
-            if(zoom_bined_jumps_bout[column][4:9].sum()) > 0:
-                startler_jumps.append(str(column))
-            else:
-                if(zoom_bined_walk_bout[column][4:9].sum()) > 0:
-                    startler_walk.append(str(column))
-                else:
-                    startler_low_vel.append(str(column))
-
-#%%
-                    
-    '''ZOOM PLOTS VARIABLES'''
-
-    zoom_violin_plots_variables(zoom_speed2d, walker_x_walker, 'zoom_speed2d_walker_x_walker')
-    zoom_violin_plots_variables(zoom_speed2d, walker_x_notwalker, 'zoom_speed2d_walker_x_notwalker')
-    zoom_violin_plots_variables(zoom_speed2d, walker_x_freezer, 'zoom_speed2d_walker_x_freezer')
-    zoom_violin_plots_variables(zoom_speed2d, walker_x_notfreezer, 'zoom_speed2d_walker_x_notfreezer')
-    zoom_violin_plots_variables(zoom_speed2d, walker_jumper_x, 'zoom_speed2d_walker_jumper_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_notjumper_x, 'zoom_speed2d_walker_notjumper_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_pauser_x, 'zoom_speed2d_walker_pauser_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_notpauser_x, 'zoom_speed2d_walker_notpauser_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_pauser_walker, 'zoom_speed2d_walker_pauser_walker')
-    zoom_violin_plots_variables(zoom_speed2d, walker_notpauser_walker, 'zoom_speed2d_walker_notpauser_walker')  
-    zoom_violin_plots_variables(zoom_speed2d, walker_pauser_jumper_x, 'zoom_speed2d_walker_pauser_jumper_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_pauser_notjumper_x, 'zoom_speed2d_walker_pauser_notjumper_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_jumper_pauser_x, 'zoom_speed2d_walker_jumper_pauser_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_jumper_notpauser_x, 'zoom_speed2d_walker_jumper_notpauser_x')
-    zoom_violin_plots_variables(zoom_speed2d, walker_jumper_freezer, 'zoom_speed2d_walker_jumper_freezer')
-    zoom_violin_plots_variables(zoom_speed2d, walker_notjumper_freezer, 'zoom_speed2d_walker_notjumper_freezer')
-    zoom_violin_plots_variables(zoom_speed2d, walker_notjumper_walker, 'zoom_speed2d_walker_notjumper_walker')
-
-    zoom_line_plots_variables(zoom_speed2d, walker_x_walker, 'zoom_speed2d_walker_x_walker')
-    zoom_line_plots_variables(zoom_speed2d, walker_x_notwalker, 'zoom_speed2d_walker_x_notwalker')
-    zoom_line_plots_variables(zoom_speed2d, walker_x_freezer, 'zoom_speed2d_walker_x_freezer')
-    zoom_line_plots_variables(zoom_speed2d, walker_x_notfreezer, 'zoom_speed2d_walker_x_notfreezer')
-    zoom_line_plots_variables(zoom_speed2d, walker_jumper_x, 'zoom_speed2d_walker_jumper_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_notjumper_x, 'zoom_speed2d_walker_notjumper_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_pauser_x, 'zoom_speed2d_walker_pauser_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_notpauser_x, 'zoom_speed2d_walker_notpauser_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_pauser_walker, 'zoom_speed2d_walker_pauser_walker')
-    zoom_line_plots_variables(zoom_speed2d, walker_notpauser_walker, 'zoom_speed2d_walker_notpauser_walker')  
-    zoom_line_plots_variables(zoom_speed2d, walker_pauser_jumper_x, 'zoom_speed2d_walker_pauser_jumper_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_pauser_notjumper_x, 'zoom_speed2d_walker_pauser_notjumper_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_jumper_pauser_x, 'zoom_speed2d_walker_jumper_pauser_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_jumper_notpauser_x, 'zoom_speed2d_walker_jumper_notpauser_x')
-    zoom_line_plots_variables(zoom_speed2d, walker_jumper_freezer, 'zoom_speed2d_walker_jumper_freezer')
-    zoom_line_plots_variables(zoom_speed2d, walker_notjumper_freezer, 'zoom_speed2d_walker_notjumper_freezer')
-    zoom_line_plots_variables(zoom_speed2d, walker_notjumper_walker, 'zoom_speed2d_walker_notjumper_walker')
-    zoom_line_plots_variables(zoom_pixelchange, freezer_all, 'zoom_pixelchange_freezer_all')
-    zoom_line_plots_variables(zoom_pixelchange, startler_jumps, 'zoom_pixelchange_startler_jumps')
-    zoom_line_plots_variables(zoom_pixelchange, startler_walk, 'zoom_pixelchange_startler_walk')
-    zoom_line_plots_variables(zoom_pixelchange, startler_low_vel, 'zoom_pixelchange_startler_low_vel')
-
-    zoom_walk_bout['mean'] = zoom_walk_bout.mean(axis=1)
-    zoom_freeze_bout['mean'] = zoom_freeze_bout.mean(axis=1)
-    zoom_low_vel_bout['mean'] = zoom_low_vel_bout.mean(axis=1)
-    zoom_jumps_bout['mean'] = zoom_jumps_bout.mean(axis=1)
-
-
-#%%%
-    
-    '''FIRST LOOM ZOOM PLOTS'''
-    
-    first_loom_walker_x_walker = select_first_loom(walker_x_walker)
-    first_loom_walker_x_notwalker = select_first_loom(walker_x_notwalker)
-    first_loom_walker_x_freezer = select_first_loom(walker_x_freezer)
-    first_loom_walker_x_notfreezer = select_first_loom(walker_x_notfreezer)
-    first_loom_walker_jumper_x = select_first_loom(walker_jumper_x)
-    first_loom_walker_notjumper_x = select_first_loom(walker_notjumper_x)
-    first_loom_walker_pauser_x = select_first_loom(walker_pauser_x)
-    first_loom_walker_notpauser_x = select_first_loom(walker_notpauser_x)
-    first_loom_walker_pauser_walker = select_first_loom(walker_pauser_walker)
-    first_loom_walker_notpauser_walker = select_first_loom(walker_notpauser_walker)
-    first_loom_walker_pauser_jumper_x = select_first_loom(walker_pauser_jumper_x)
-    first_loom_walker_pauser_notjumper_x = select_first_loom(walker_pauser_notjumper_x)
-    first_loom_walker_jumper_pauser_x = select_first_loom(walker_jumper_pauser_x)
-    first_loom_walker_jumper_notpauser_x = select_first_loom(walker_jumper_notpauser_x)
-    first_loom_walker_jumper_freezer = select_first_loom(walker_jumper_freezer)
-    first_loom_walker_notjumper_freezer = select_first_loom(walker_notjumper_freezer)
-    first_loom_walker_notjumper_walker = select_first_loom(walker_notjumper_walker)
-
-    
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_walker, 'first_loom_zoom_speed2d_walker_x_walker')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_notwalker, 'first_loom_zoom_speed2d_walker_x_notwalker')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_freezer, 'first_loom_zoom_speed2d_walker_x_freezer')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_notfreezer, 'first_loom_zoom_speed2d_walker_x_notfreezer')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_x, 'first_loom_zoom_speed2d_walker_jumper_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_x, 'first_loom_zoom_speed2d_walker_notjumper_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_x, 'first_loom_zoom_speed2d_walker_pauser_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notpauser_x, 'first_loom_zoom_speed2d_walker_notpauser_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_walker, 'first_loom_zoom_speed2d_walker_pauser_walker')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notpauser_walker, 'first_loom_zoom_speed2d_walker_notpauser_walker')  
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_jumper_x, 'first_loom_zoom_speed2d_walker_pauser_jumper_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_notjumper_x, 'first_loom_zoom_speed2d_walker_pauser_notjumper_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_pauser_x, 'first_loom_zoom_speed2d_walker_jumper_pauser_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_notpauser_x, 'first_loom_zoom_speed2d_walker_jumper_notpauser_x')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_freezer, 'first_loom_zoom_speed2d_walker_jumper_freezer')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_freezer, 'first_loom_zoom_speed2d_walker_notjumper_freezer')
-    zoom_violin_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_walker, 'first_loom_zoom_speed2d_walker_notjumper_walker')
-
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_walker, 'first_loom_zoom_speed2d_walker_x_walker')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_notwalker, 'first_loom_zoom_speed2d_walker_x_notwalker')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_freezer, 'first_loom_zoom_speed2d_walker_x_freezer')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_x_notfreezer, 'first_loom_zoom_speed2d_walker_x_notfreezer')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_x, 'first_loom_zoom_speed2d_walker_jumper_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_x, 'first_loom_zoom_speed2d_walker_notjumper_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_x, 'first_loom_zoom_speed2d_walker_pauser_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notpauser_x, 'first_loom_zoom_speed2d_walker_notpauser_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_walker, 'first_loom_zoom_speed2d_walker_pauser_walker')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notpauser_walker, 'first_loom_zoom_speed2d_walker_notpauser_walker')  
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_jumper_x, 'first_loom_zoom_speed2d_walker_pauser_jumper_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_pauser_notjumper_x, 'first_loom_zoom_speed2d_walker_pauser_notjumper_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_pauser_x, 'first_loom_zoom_speed2d_walker_jumper_pauser_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_notpauser_x, 'first_loom_zoom_speed2d_walker_jumper_notpauser_x')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_jumper_freezer, 'first_loom_zoom_speed2d_walker_jumper_freezer')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_freezer, 'first_loom_zoom_speed2d_walker_notjumper_freezer')
-    zoom_line_plots_variables(first_loom_zoom_speed2d, first_loom_walker_notjumper_walker, 'first_loom_zoom_speed2d_walker_notjumper_walker')
-    
-
-#%%
-    
-    '''HEATMAPS VARIABLES'''
-    heatmap_col_order = (freeze_bout_bined[(int(baseline_frames/bin_size)):] == 1).sum().sort_values(ascending=False).index.values.tolist()
-
-    velocity_sorted = velocity_bined[heatmap_col_order]
-    freezing_sorted = freeze_bout_bined[heatmap_col_order]
-    jumps_sorted = jumps_bined[heatmap_col_order]
-    freezing_pops = np.ma.masked_equal(freezing_sorted, 1)
-    
  
     '''INDIVIDUAL GROUP PLOTS'''
     
@@ -793,19 +413,6 @@ for group in groups:
 
     loom_coordinate = [(i/bin_size) for i in median_loom]
     x_coordinate = [i for i in range(len(line_plots_df))]
-
-#%%
-    '''HEATMAPS'''
-
-    fig, axs = plt.subplots(figsize=(15, 15))
-    axs.xaxis.set_visible(False)
-    axs.yaxis.set_visible(False)
-    axs.set_title(str(groups_labels[(group_n-1)]) + ' (' + str(len(looming.columns)-1) + ')', fontsize = 20)
-    axs.vlines(loom_coordinate, -6, 500, linestyles='-', lw= 0.5, color='white')
-    sns.heatmap(np.transpose(freezing_sorted), cmap="Greys" , cbar=False, alpha = 0.35, linewidths=0)
-    sns.heatmap(np.transpose(velocity_sorted), mask=np.transpose(freezing_pops), cmap='viridis', vmin=0, vmax=20, cbar=False, linewidths=0)
-    fig.savefig((plot_path+"/"+str(groups_labels[(group_n-1)])+"_heatmap.png"), format='png') 
-    plt.show()
 
 #%%
 ''' MULTIPLE GROUPS PLOTS'''
