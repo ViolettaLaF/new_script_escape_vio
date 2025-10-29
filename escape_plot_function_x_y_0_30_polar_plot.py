@@ -83,10 +83,10 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = '39347_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
-group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
+group1_label = 'VLF-39347_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+group2_label = 'VLF-39347_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
 
 #%%
 '''try-out for angular speed calculation.
@@ -361,9 +361,9 @@ def escape_counter(condition): # condition is the first part of the string of fl
                 train_post.append(row_post)
         
             '''take t-test of 100 samples between groups'''            
-            t, p = ttest_ind(train_pre, train_post)
+            t, p = ttest_ind(train_pre, train_post, alternative='less') #changed here from original script as in this case the one sided is better!!
             if (df_try.loc[loom_onset[loom],'freeze_bout']==0):
-                if (t<0) & (p<0.05):
+                if (p<0.05):
                     df_try.loc[loom_offset[loom], 'esc_run'] = 1 #if t-test is significant, if yes --> 1
         
                 
@@ -378,14 +378,14 @@ def escape_counter(condition): # condition is the first part of the string of fl
             df_all.loc[i,'esc_run']=0
             df_all.loc[i,'esc_mean_vel']=0
             df_all.loc[i,'esc_turn']=0
-            df_all.loc[i,'esc_freeze']=0 # can flies jump and then freeze? Which escape is counted?
+            df_all.loc[i,'esc_freeze']=0 # can flies jump and then freeze? Which escape is counted? at the moment jump!
       
         elif df_all.loc[i,'esc_run']==1: #=> running is ovveriding freezing!
             df_all.loc[i,'esc_freeze']=0
     
 
-    df_all.loc[(df_all['esc_run']==1) & (df_all['esc_turn']==1), ['turn_run', 'esc_run', 'esc_turn']]=[1,0,0] #if flies is in an escape turn and in a escape_run she will be categorized as turn run!
-
+    #df_all.loc[(df_all['esc_run']==1) & (df_all['esc_turn']==1), ['turn_run', 'esc_run', 'esc_turn']]=[1,0,0] #if flies is in an escape turn and in a escape_run she will be categorized as turn run!
+    df_all.loc[(df_all['esc_run']==1) & (df_all['esc_turn']==1), ['turn_run', 'esc_run', 'esc_turn']]=[1,1,0] #if flies is in an escape turn and in a escape_run she will be categorized as escape_run! running overriding turning!
     
     col_lst = ['esc_turn', 'esc_jump', 'esc_run', 'esc_freeze','esc_mean_vel']
     df_all['esc_none'] = df_all[col_lst].sum(axis=1)
