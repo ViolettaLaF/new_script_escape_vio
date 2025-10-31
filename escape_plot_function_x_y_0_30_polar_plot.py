@@ -83,10 +83,10 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = '39347_luc_RNAi_TRIP-30sec_vs_5min' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
-group2_label = 'VLF-39347_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
+group1_label = 'VLF-39347_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+group2_label = 'VLF-39347_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
 
 #%%
 '''try-out for angular speed calculation.
@@ -409,16 +409,20 @@ def escape_counter(condition): # condition is the first part of the string of fl
 
 
     # === plotting Stacked bar plot of behaviors (fractions) ===
-    counts = df_all[['esc_turn', 'esc_jump', 'esc_run', 'esc_freeze', 'esc_none']].sum()
+    #counts = df_all[['esc_turn', 'esc_jump', 'esc_run', 'esc_freeze', 'esc_none']].sum()
+    counts = df_all[['escape', 'esc_freeze', 'esc_none']].sum()
     total = counts.sum()
     fractions = counts / total  # fraction of each behavior
 
     fig, ax = plt.subplots()     # Plot stacked bar 
-    ax.bar("Behaviors", fractions["esc_turn"], width=0.1, label="Turn", color="y")
-    ax.bar("Behaviors", fractions["esc_jump"], bottom=fractions["esc_turn"], width=0.1, label="Jump", color="darkslateblue")
-    ax.bar("Behaviors", fractions["esc_run"], bottom=fractions["esc_turn"]+fractions["esc_jump"], width=0.1, label="Run", color="tomato")
-    ax.bar("Behaviors", fractions["esc_freeze"], bottom=fractions["esc_turn"]+fractions["esc_jump"]+fractions["esc_run"],width=0.1, label="Freeze", color="darkcyan")
-    ax.bar("Behaviors", fractions["esc_none"], bottom=fractions["esc_turn"]+fractions["esc_jump"]+fractions["esc_run"]+fractions["esc_freeze"],width=0.1, label="No response", color="lightgrey")
+    #ax.bar("Behaviors", fractions["esc_turn"], width=0.1, label="Turn", color="y")
+    #ax.bar("Behaviors", fractions["esc_jump"], bottom=fractions["esc_turn"], width=0.1, label="Jump", color="darkslateblue")
+    #ax.bar("Behaviors", fractions["esc_run"], bottom=fractions["esc_turn"]+fractions["esc_jump"], width=0.1, label="Run", color="tomato")
+    #ax.bar("Behaviors", fractions["esc_freeze"], bottom=fractions["esc_turn"]+fractions["esc_jump"]+fractions["esc_run"],width=0.1, label="Freeze", color="darkcyan")
+    #ax.bar("Behaviors", fractions["esc_none"], bottom=fractions["esc_turn"]+fractions["esc_jump"]+fractions["esc_run"]+fractions["esc_freeze"],width=0.1, label="No response", color="lightgrey")
+    ax.bar("Behaviors", fractions['escape'], width=0.1, label="Escape", color='tomato')
+    ax.bar("Behaviors", fractions['esc_freeze'], bottom=fractions['escape'], width=0.1, label="Freeze", color="darkcyan")
+    ax.bar("Behaviors", fractions['esc_none'], bottom=fractions['esc_freeze']+fractions['escape'], width=0.1, label="No response", color="lightgrey")
 
     ax.set_ylim([0, 1])  # fraction scale
     ax.set_ylabel("Fraction of behaviour (0–1)")
