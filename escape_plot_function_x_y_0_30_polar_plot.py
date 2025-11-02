@@ -65,8 +65,357 @@ from scipy.stats import ttest_ind
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection, PathCollection
 from matplotlib.lines import Line2D
+from scipy.stats import chi2_contingency, fisher_exact
+from scipy.stats import norm
 
-#os.chdir( 'C:/Users/ricmi/Desktop/vTNTxpleGAL4')
+
+
+def prepare_comparison_data(raw1, raw2, group1_label, group2_label): # PART 1: Prepare data from both groups
+    """
+    Prepare data for comparison between two groups
+    
+    Parameters:
+    -----------
+    raw1, raw2 : pd.DataFrame
+        Raw dataframes from escape_counter function (df_all output)
+    group1_label, group2_label : str
+        Labels for the groups
+    
+    Returns:
+    --------
+    combined_df : pd.DataFrame
+        Combined data with group labels
+    """
+    # Add group labels
+    raw1_copy = raw1.copy()
+    raw2_copy = raw2.copy()
+    raw1_copy['group'] = group1_label
+    raw2_copy['group'] = group2_label
+    
+    # Combine
+    combined_df = pd.concat([raw1_copy, raw2_copy], ignore_index=True)
+    
+    return combined_df
+
+
+def chi_square_test(raw1, raw2): # PART 2: Statistical tests
+    """
+    Perform chi-square test on behavior distributions between two groups
+    
+    Returns:
+    --------
+    chi2_stat : float
+    p_value : float
+    contingency_table : pd.DataFrame
+    """
+    # Count behaviors for each group
+    behaviors = ['escape', 'esc_freeze', 'esc_none']
+    
+    counts1 = raw1[behaviors].sum().values
+    counts2 = raw2[behaviors].sum().values
+    
+    # Create contingency table
+    contingency_table = np.array([counts1, counts2])
+    contingency_df = pd.DataFrame(
+        contingency_table,
+        columns=behaviors,
+        index=['Group1', 'Group2']
+    )
+    
+    # Perform chi-square test
+    chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
+    
+    return chi2_stat, p_value, contingency_df
+
+def two_proportion_ztest(count1, n1, count2, n2): # PART 2: Statistical tests
+    """
+    Two-proportion z-test for comparing proportions between groups
+    
+    Parameters:
+    -----------
+    count1, count2 : int
+        Number of successes in each group
+    n1, n2 : int
+        Total observations in each group
+    
+    Returns:
+    --------
+    z_stat : float
+    p_value : float
+    """
+    p1 = count1 / n1
+    p2 = count2 / n2
+    p_pool = (count1 + count2) / (n1 + n2)
+    
+    se = np.sqrt(p_pool * (1 - p_pool) * (1/n1 + 1/n2))
+    z_stat = (p1 - p2) / se
+    p_value = 2 * (1 - norm.cdf(abs(z_stat)))  # two-tailed
+    
+    return z_stat, p_value
+
+def bonferroni_correction(p_values, alpha=0.05): # PART 2: Statistical tests
+    """Apply Bonferroni correction for multiple comparisons"""
+    n_tests = len(p_values)
+    corrected_alpha = alpha / n_tests
+    significant = [p < corrected_alpha for p in p_values]
+    return corrected_alpha, significant
+
+
+def plot_stacked_comparison(raw1, raw2, group1_label, group2_label, # PART 3: Visualization - Stacked bar plot with statistics
+                           save_path, experiment_name):
+    """
+    Create side-by-side stacked bar plot comparing behavior distributions
+    with statistical annotations
+    """
+    behaviors = ['escape', 'esc_freeze', 'esc_none']
+    behavior_labels = ['Escape', 'Freeze', 'No response']
+    colors = ['tomato', 'darkcyan', 'lightgrey']
+    
+    # Calculate counts and fractions
+    counts1 = raw1[behaviors].sum()
+    counts2 = raw2[behaviors].sum()
+    total1 = counts1.sum()
+    total2 = counts2.sum()
+    fractions1 = counts1 / total1
+    fractions2 = counts2 / total2
+    
+    # Perform statistical tests
+    chi2_stat, p_value_chi2, contingency_table = chi_square_test(raw1, raw2)
+    
+    # Post-hoc pairwise comparisons
+    p_values_pairwise = []
+    for behavior in behaviors:
+        z, p = two_proportion_ztest(
+            counts1[behavior], total1,
+            counts2[behavior], total2
+        )
+        p_values_pairwise.append(p)
+    
+    # Apply Bonferroni correction
+    corrected_alpha, significant = bonferroni_correction(p_values_pairwise)
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=(8, 7))
+    
+    width = 0.4
+    x_pos = [0, 1]
+    group_labels = [group1_label, group2_label]
+    
+    # Stack bars for group 1
+    bottom1 = 0
+    for i, (behavior, color, label) in enumerate(zip(behaviors, colors, behavior_labels)):
+        ax.bar(x_pos[0], fractions1[behavior], width, bottom=bottom1, 
+               color=color, label=label, edgecolor='black', linewidth=1.5, alpha=0.85)
+        
+        # Add percentage text in the middle of each segment
+        if fractions1[behavior] > 0.05:  # Only show text if segment is big enough
+            ax.text(x_pos[0], bottom1 + fractions1[behavior]/2, 
+                   f'{fractions1[behavior]*100:.1f}%',
+                   ha='center', va='center', fontsize=10, fontweight='bold')
+        
+        bottom1 += fractions1[behavior]
+    
+    # Stack bars for group 2
+    bottom2 = 0
+    for i, (behavior, color) in enumerate(zip(behaviors, colors)):
+        ax.bar(x_pos[1], fractions2[behavior], width, bottom=bottom2, 
+               color=color, edgecolor='black', linewidth=1.5, alpha=0.85)
+        
+        # Add percentage text
+        if fractions2[behavior] > 0.05:
+            ax.text(x_pos[1], bottom2 + fractions2[behavior]/2, 
+                   f'{fractions2[behavior]*100:.1f}%',
+                   ha='center', va='center', fontsize=10, fontweight='bold')
+        
+        bottom2 += fractions2[behavior]
+    
+    # Add significance brackets between groups for each behavior
+    # Calculate cumulative positions for bracket placement
+    cumsum1 = np.cumsum([0] + fractions1.tolist())
+    cumsum2 = np.cumsum([0] + fractions2.tolist())
+    
+    for i, (is_sig, p_val) in enumerate(zip(significant, p_values_pairwise)):
+        if is_sig:
+            # Determine significance level
+            if p_val < 0.001:
+                sig_text = '***'
+            elif p_val < 0.01:
+                sig_text = '**'
+            elif p_val < corrected_alpha:
+                sig_text = '*'
+            else:
+                continue
+            
+            # Position bracket at the middle of each behavior segment
+            y_pos1 = cumsum1[i] + fractions1.values[i]/2
+            y_pos2 = cumsum2[i] + fractions2.values[i]/2
+            y_bracket = max(y_pos1, y_pos2)
+            
+            # Draw horizontal lines from each bar
+            ax.plot([x_pos[0] + width/2 + 0.02, x_pos[0] + width/2 + 0.08], 
+                   [y_pos1, y_bracket], 'k-', lw=1.5)
+            ax.plot([x_pos[1] - width/2 - 0.02, x_pos[1] - width/2 - 0.08], 
+                   [y_pos2, y_bracket], 'k-', lw=1.5)
+            # Draw connecting line
+            ax.plot([x_pos[0] + width/2 + 0.08, x_pos[1] - width/2 - 0.08], 
+                   [y_bracket, y_bracket], 'k-', lw=1.5)
+            # Add significance text
+            ax.text((x_pos[0] + x_pos[1])/2, y_bracket + 0.02, sig_text, 
+                   ha='center', fontsize=12, fontweight='bold')
+    
+    # Formatting
+    ax.set_ylabel('Fraction of behaviors', fontsize=13, fontweight='bold')
+    ax.set_title(f'{experiment_name}\nBehavior Distribution Comparison\n' + 
+                 f'Chi-square: χ² = {chi2_stat:.2f}, p = {p_value_chi2:.4f}',
+                 fontsize=13, fontweight='bold', pad=15)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(group_labels, fontsize=11, fontweight='bold')
+    ax.set_ylim([0, 1])  # Extra space for significance markers ([0, 1.2])
+    ax.set_xlim([-0.5, 1.5])
+    
+    # Legend
+    ax.legend(fontsize=11, loc='upper center', bbox_to_anchor=(0.5, -0.05), 
+             ncol=3, frameon=False)
+    
+    # Clean up plot
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_linewidth(1.5)
+    ax.spines['left'].set_linewidth(1.5)
+    
+    plt.tight_layout()
+    plt.savefig(f'{save_path}/{experiment_name}_stacked_comparison.png', 
+                dpi=600, bbox_inches='tight')
+    plt.show()
+    
+    # Print statistical summary
+    print("\n" + "="*70)
+    print("STATISTICAL ANALYSIS SUMMARY")
+    print("="*70)
+    print(f"\nContingency Table:")
+    print(contingency_table)
+    print(f"\nTotal observations: Group1={total1}, Group2={total2}")
+    print(f"\nChi-square test of independence:")
+    print(f"  χ² = {chi2_stat:.4f}")
+    print(f"  p-value = {p_value_chi2:.4f}")
+    if p_value_chi2 < 0.05:
+        print("  Result: SIGNIFICANT difference in behavior distributions")
+    else:
+        print("  Result: NO significant difference in behavior distributions")
+    
+    print(f"\n{'─'*70}")
+    print("Post-hoc pairwise comparisons (with Bonferroni correction):")
+    print(f"Corrected alpha level: {corrected_alpha:.4f}")
+    print(f"{'─'*70}")
+    for i, behavior in enumerate(behavior_labels):
+        print(f"\n{behavior}:")
+        print(f"  Group1: {fractions1.values[i]:.3f} ({counts1.values[i]}/{total1})")
+        print(f"  Group2: {fractions2.values[i]:.3f} ({counts2.values[i]}/{total2})")
+        print(f"  p-value: {p_values_pairwise[i]:.4f}")
+        if significant[i]:
+            print(f"  Result: SIGNIFICANT difference (*)")
+        else:
+            print(f"  Result: Not significant")
+    print("="*70)
+    
+    return chi2_stat, p_value_chi2, p_values_pairwise
+
+
+def save_statistics_to_csv(raw1, raw2, group1_label, group2_label, 
+                           save_path, experiment_name):
+    """
+    Save all statistical results to a CSV file
+    
+    Parameters:
+    -----------
+    raw1, raw2 : pd.DataFrame
+        Raw dataframes from escape_counter function
+    group1_label, group2_label : str
+        Labels for the groups
+    save_path : str
+        Path to save the CSV file
+    experiment_name : str
+        Name of the experiment for filename
+    """
+    behaviors = ['escape', 'esc_freeze', 'esc_none']
+    behavior_labels = ['Escape', 'Freeze', 'No response']
+    
+    # Calculate counts and fractions
+    counts1 = raw1[behaviors].sum()
+    counts2 = raw2[behaviors].sum()
+    total1 = counts1.sum()
+    total2 = counts2.sum()
+    fractions1 = counts1 / total1
+    fractions2 = counts2 / total2
+    
+    # Perform statistical tests
+    chi2_stat, p_value_chi2, contingency_table = chi_square_test(raw1, raw2)
+    
+    # Post-hoc pairwise comparisons
+    p_values_pairwise = []
+    z_stats = []
+    for behavior in behaviors:
+        z, p = two_proportion_ztest(
+            counts1[behavior], total1,
+            counts2[behavior], total2
+        )
+        z_stats.append(z)
+        p_values_pairwise.append(p)
+    
+    # Apply Bonferroni correction
+    corrected_alpha, significant = bonferroni_correction(p_values_pairwise)
+    
+    # Create comprehensive statistics dataframe
+    stats_data = {
+        'Behavior': behavior_labels,
+        f'{group1_label}_count': counts1.values,
+        f'{group1_label}_total': [total1] * len(behaviors),
+        f'{group1_label}_fraction': fractions1.values,
+        f'{group1_label}_percentage': fractions1.values * 100,
+        f'{group2_label}_count': counts2.values,
+        f'{group2_label}_total': [total2] * len(behaviors),
+        f'{group2_label}_fraction': fractions2.values,
+        f'{group2_label}_percentage': fractions2.values * 100,
+        'difference_fraction': fractions1.values - fractions2.values,
+        'difference_percentage': (fractions1.values - fractions2.values) * 100,
+        'z_statistic': z_stats,
+        'p_value': p_values_pairwise,
+        'bonferroni_corrected_alpha': [corrected_alpha] * len(behaviors),
+        'significant_after_correction': significant
+    }
+    
+    df_stats = pd.DataFrame(stats_data)
+    
+    # Add chi-square test results as a summary row
+    summary_data = {
+        'Behavior': 'OVERALL_CHI_SQUARE',
+        f'{group1_label}_count': '',
+        f'{group1_label}_total': total1,
+        f'{group1_label}_fraction': '',
+        f'{group1_label}_percentage': '',
+        f'{group2_label}_count': '',
+        f'{group2_label}_total': total2,
+        f'{group2_label}_fraction': '',
+        f'{group2_label}_percentage': '',
+        'difference_fraction': '',
+        'difference_percentage': '',
+        'z_statistic': chi2_stat,
+        'p_value': p_value_chi2,
+        'bonferroni_corrected_alpha': 0.05,
+        'significant_after_correction': p_value_chi2 < 0.05
+    }
+    
+    df_stats = pd.concat([df_stats, pd.DataFrame([summary_data])], ignore_index=True)
+    
+    # Format p-values for better display (use scientific notation for very small values)
+    df_stats['p_value_formatted'] = df_stats['p_value'].apply(lambda x: f'{x:.2e}' if x < 0.0001 else f'{x:.6f}' if isinstance(x, (int, float)) else x)
+    
+    # Save to CSV
+    csv_filename = f'{save_path}/{experiment_name}_escape_statistics.csv'
+    df_stats.to_csv(csv_filename, index=False)    
+    return df_stats
+
+
 
 def load_path():
     root = tkinter.Tk()
@@ -83,10 +432,10 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_luc_RNAi_TRIP-30sec_vs_5min' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = '39347_tsh_gal80_DH44_RNAi_TRIP_vs_luc-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_luc_RNAi_TRIP-5minbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
-group2_label = 'VLF-39347_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
+group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
 
 #%%
 '''try-out for angular speed calculation.
@@ -263,8 +612,8 @@ def plot_polar(path, group_name):
                 bbox_inches='tight', dpi=1800)
     plt.show()
     
-group1_1_polar = plot_polar(exp_path, group1_label)
-group1_2_polar = plot_polar(exp_path, group2_label)    
+#group1_1_polar = plot_polar(exp_path, group1_label)
+#group1_2_polar = plot_polar(exp_path, group2_label)    
 #%%
 '''upload scored file'''
 def escape_counter(condition): # condition is the first part of the string of fly-name, only flies in that condition will be used
@@ -468,7 +817,14 @@ def escape_counter(condition): # condition is the first part of the string of fl
 #%%
 group1, raw1 = escape_counter(group1_label )
 group2, raw2 = escape_counter(group2_label)
-#%%
+
+# Create stacked comparison plot with statistics
+chi2, p_chi2, p_pairwise = plot_stacked_comparison(raw1, raw2, group1_label, group2_label, plot_path, experiment_name)
+
+# Save statistics to CSV
+df_statistics = save_statistics_to_csv(raw1, raw2, group1_label, group2_label, plot_path, experiment_name)
+#%% Commenting all of this just because right now I don't need this plot - but if they are needed decomment this section!
+"""
 def plot_escape(group,raw_group, group_name):
     '''plot df_empty_TNT:escape vs freeze vs none'''
     n = len(raw_group)/20
@@ -748,4 +1104,4 @@ plt.savefig(plot_path_pdf_escape_plots+"/"+str(experiment_name+"_different_escap
 plt.show()
 plt.clf();
 #%%
-
+"""
