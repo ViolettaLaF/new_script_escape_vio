@@ -10,16 +10,38 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import dabest 
+import dabest
+import tkinter, tkinter.filedialog
+ 
 
 # Define all groups
-
-
 
 group_names  = ['luc_RNAi_TRIP-5minbase','luc_RNAi_TRIP-30secbase',
                    'DH44_RNAi_TRIP-5minbase','DH44_RNAi_TRIP-30secbase'] # use the group names as present in each filename
 number_of_groups = len(group_names)
-rootdir = "F:/Experiments/DH44_manipulation/DH44_gal4_uas_RNAi/TRIP/5vs30secbase/already_tracked_no_sleep/5_min_30sec_together/scored" # folder wher the files are stored
+#rootdir = "F:/Experiments/DH44_manipulation/DH44_gal4_uas_RNAi/TRIP/5vs30secbase/already_tracked_no_sleep/5_min_30sec_together/scored" # folder wher the files are stored
+
+
+
+def load_path():
+    root = tkinter.Tk()
+    filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files') #path is the scored folder!!
+    root.destroy()
+    return filename
+rootdir = load_path()
+
+
+
+
+# TIME SCALES
+frame_rate = 60
+# EXPERIMENT DURATION (in sec) - DEFINE PER GROUP
+baseline_group1 = 300  # 5 minutes
+baseline_group2 = 30   # 30 seconds
+# Calculate frames for each group
+baseline_frames_group1 = baseline_group1 * frame_rate
+baseline_frames_group2 = baseline_group2 * frame_rate
+
 
 
 df_freeze_all = pd.DataFrame()
@@ -37,9 +59,9 @@ for i in range(number_of_groups):
         # Read CSV with explicit keyword arguments
         fly_df = pd.read_csv(rootdir+'/'+filename,  usecols=['freeze_bout'])
         if "30secbase" in filename:            
-            freeze_loom = fly_df.loc[300:,'freeze_bout'].mean() #for freeze proportion per fly
+            freeze_loom = fly_df.loc[baseline_frames_group2:,'freeze_bout'].mean() #for freeze proportion per fly #
         elif "5minbase" in filename:            
-            freeze_loom = fly_df.loc[18000:,'freeze_bout'].mean() #for freeze proportion per fly        
+            freeze_loom = fly_df.loc[baseline_frames_group1:,'freeze_bout'].mean() #for freeze proportion per fly        
        
         df_freeze_all.loc[fly_n,group] = freeze_loom
         fly_n+=1
