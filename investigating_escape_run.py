@@ -114,7 +114,7 @@ aggregate_window_data = {}
 aggregate_p_values = {}
 
 # Initialize aggregate dictionaries with window keys
-window_starts_sec_init = np.arange(0.5, 8.5, 0.5)
+window_starts_sec_init = np.arange(0.5, 2, 0.5) #np.arange(0.5, 8.5, 0.5) when Marta was asking me to check till 8 sec after loom onset! 
 for w_sec in window_starts_sec_init:
     w_key = f"{w_sec:.1f}s"
     aggregate_window_data[w_key] = {'escape_runs': 0, 'total_looms': 0}
@@ -170,12 +170,12 @@ for filename in sorted(os.listdir(path+'/scored/')):
     # Mark frames with jumps as NaN
     df_try.loc[df_try['jumps'] == 1, 'velocity_clean'] = np.nan
     
-    # Also remove frames right before and after jump (they're often artifacts)
-    #for idx in df_try[df_try['jumps'] == 1].index:
-    #    if idx >= 2:
-    #        df_try.loc[idx-2:idx-1, 'velocity_clean'] = np.nan
-    #    if idx <= len(df_try) - 3:
-    #        df_try.loc[idx+1:idx+2, 'velocity_clean'] = np.nan
+    # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
+    for idx in df_try[df_try['jumps'] == 1].index:
+        if idx >= 6:
+            df_try.loc[idx-6:idx-1, 'velocity_clean'] = np.nan
+        if idx <= len(df_try) - 7:
+            df_try.loc[idx+1:idx+6, 'velocity_clean'] = np.nan
     
     # Step 2: Apply running average (7 frames) - NaNs will be skipped
     df_try['velocity_smooth'] = df_try['velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
@@ -273,7 +273,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
     window_size_frames = window_size_sec * frame_rate
 
     start_window_sec = 0.5
-    end_window_sec = 8
+    end_window_sec = 1.5 #8 
     step_sec = 0.5
     step_frames = int(step_sec * frame_rate)
 
@@ -326,7 +326,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
             train_pre = []
             train_post = []
             
-            for perm in range(1000):
+            for perm in range(1000): #1000
                 df_sample_pre = permutated_pre.sample(n=30, replace=True)
                 row_pre = df_sample_pre.mean(axis=0)
                 train_pre.append(row_pre)
@@ -649,7 +649,7 @@ print("\n" + "="*70 + "\n")
 #%% MODIFICATION 3: AGGREGATE SPEED PLOT ACROSS ALL DATASET
 all_escape_speeds = []
 all_non_escape_speeds = []
-final_window = '2.0s'  # CHANGE THIS to your chosen window
+final_window = '0.5s' #'2.0s'  CHANGE THIS to your chosen window
 
 print(f"\nCollecting speed data from all files for window: {final_window}...")
 
