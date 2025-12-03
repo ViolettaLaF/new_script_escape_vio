@@ -70,6 +70,20 @@ from scipy.stats import norm
 
 
 
+#TIME SCALES
+frame_rate = 60
+
+#EXPERIMENT DURATION (in sec)
+baseline  = 30
+stimulation = 300
+#(in min)
+total_duration_min = (baseline + stimulation) / 60
+#(in frame)
+baseline_frames = baseline * frame_rate
+stimulation_frames = stimulation * frame_rate
+tot_frame = baseline_frames + stimulation_frames
+
+
 def prepare_comparison_data(raw1, raw2, group1_label, group2_label): # PART 1: Prepare data from both groups
     """
     Prepare data for comparison between two groups
@@ -432,10 +446,10 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_tsh_gal80_DH44_RNAi_TRIP_vs_luc-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_or_luc_RNAi_TRIP" #
+experiment_name = 'VLF-39347_luc_RNAi_TRIP-30secbase_vs_DH44' #"Tsh_GAL80_DH44_GAL4_DH44_or_DH44_RNAi_TRIP" #
 
-group1_label = 'VLF-39347_tsh_gal80_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
-group2_label = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
+group1_label = 'VLF-39347_luc_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_luc_RNAi_TRIP"
+group2_label = 'VLF-39347_DH44_RNAi_TRIP-30secbase' #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP" #"Tsh_GAL80_DH44_GAL4_DH44_RNAi_TRIP"
 
 #%%
 '''try-out for angular speed calculation.
@@ -612,7 +626,7 @@ def plot_polar(path, group_name):
                 bbox_inches='tight', dpi=1800)
     plt.show()
     
-#group1_1_polar = plot_polar(exp_path, group1_label)
+#group1_1_polar = plot_polar(exp_path, group1_label)  #commented here because I don't need right now this plot
 #group1_2_polar = plot_polar(exp_path, group2_label)    
 #%%
 '''upload scored file'''
@@ -692,15 +706,39 @@ def escape_counter(condition): # condition is the first part of the string of fl
                 df_try.loc[loom_offset[i], 'esc_freeze'] = 1
         
     
-        '''checking increase in speed''' #This block is checking if flies significantly increase their running speed after the looming stimulus. It does this with a bootstrapping approach (sampling random subsets of velocities before and after) and then applying a t-test. If the increase is real and not just noise, it marks that loom as an “escape run.”
+        '''checking increase in speed - escape run''' #This block is checking if flies significantly increase their running speed after the looming stimulus. It does this with a bootstrapping approach (sampling random subsets of velocities before and after) and then applying a t-test. If the increase is real and not just noise, it marks that loom as an “escape run.”        
+        # Step 1: Create a cleaned velocity column (remove jumps)
+        df_try['velocity_clean'] = df_try['velocity'].copy()
+        
+        # Mark frames with jumps as NaN
+        df_try.loc[df_try['jumps'] == 1, 'velocity_clean'] = np.nan
+        
+        # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
+        for idx in df_try[df_try['jumps'] == 1].index:
+            if idx >= 6:
+                df_try.loc[idx-6:idx-1, 'velocity_clean'] = np.nan
+            if idx <= len(df_try) - 7:
+                df_try.loc[idx+1:idx+6, 'velocity_clean'] = np.nan
+        
+        # Step 2: Apply running average (7 frames) - NaNs will be skipped
+        df_try['velocity_smooth'] = df_try['velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
+
+
+        # Calculate baseline speed statistics 
+        baseline_speed = df_try.loc[0:baseline_frames, 'velocity_smooth']
+        baseline_mean = baseline_speed.mean()
+        baseline_std = baseline_speed.std()
+        speed_threshold = baseline_mean + baseline_std
+
+        
         for loom in range(len(loom_onset)):
-            permutated_pre = df_try.loc[loom_onset[i]-120:(loom_onset[i]), 'velocity'] #velocities in the time window that goes from 2 second before loom onset to loom onset! 
-            permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'velocity'] #velocities in the time window that goes from loom offset to 2 second after!
+            permutated_pre = df_try.loc[loom_onset[i]-120:(loom_onset[i]), 'velocity_smooth'] #velocities in the time window that goes from 2 second before loom onset to loom onset! 
+            permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'velocity_smooth'] #velocities in the time window that goes from loom offset to 2 second after!
             
             train_pre = []
             train_post = []
-            ''' run 100 permutations of velocity per frame per loom(2 seconds before and after loom)'''
-            for perm in range (100):
+            ''' run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)'''
+            for perm in range (1000): #1000
                 df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
                 row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
                 train_pre.append(row_pre)
@@ -708,14 +746,15 @@ def escape_counter(condition): # condition is the first part of the string of fl
                 df_sample_post  = permutated_post.sample(n=30)
                 row_post = df_sample_post.mean(axis=0) #mean of 30 samples --> take unpaired t-test instead, if >0.05
                 train_post.append(row_post)
-        
+            post_loom_mean_speed = permutated_post.mean()
+            
             '''take t-test of 100 samples between groups'''            
             t, p = ttest_ind(train_pre, train_post, alternative='less') #changed here from original script as in this case the one sided is better!!
             if (df_try.loc[loom_onset[loom],'freeze_bout']==0):
-                if (p<0.05):
+                if (p<0.05) & (post_loom_mean_speed > speed_threshold):
                     df_try.loc[loom_offset[loom], 'esc_run'] = 1 #if t-test is significant, if yes --> 1
-        
-                
+
+              
         '''slicing dataframe from esc_turn until end'''
         df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True) #Selects only the rows where loom_offset and columns from 'esc_turn' onwards (all the escape behavior columns: esc_turn, esc_run, esc_jump, esc_freeze, etc.)
         df_all = pd.concat([df_all,df_loom])
@@ -819,12 +858,12 @@ group1, raw1 = escape_counter(group1_label )
 group2, raw2 = escape_counter(group2_label)
 
 # Create stacked comparison plot with statistics
-chi2, p_chi2, p_pairwise = plot_stacked_comparison(raw1, raw2, group1_label, group2_label, plot_path, experiment_name)
+chi2, p_chi2, p_pairwise = plot_stacked_comparison(raw1, raw2, group1_label, group2_label, plot_path, experiment_name) #commenting just because I don't need right now 
 
 # Save statistics to CSV
-df_statistics = save_statistics_to_csv(raw1, raw2, group1_label, group2_label, plot_path, experiment_name)
-#%% Commenting all of this just because right now I don't need this plot - but if they are needed decomment this section!
-"""
+df_statistics = save_statistics_to_csv(raw1, raw2, group1_label, group2_label, plot_path, experiment_name) #commenting just because I don't need right now 
+#%% 
+
 def plot_escape(group,raw_group, group_name):
     '''plot df_empty_TNT:escape vs freeze vs none'''
     n = len(raw_group)/20
@@ -1025,8 +1064,8 @@ ax = sns.scatterplot(x='loom', y='esc_none', data=group1, color='lightgrey', s=5
 ax = sns.scatterplot(x='loom', y='esc_freeze', data=group2, color='darkcyan', alpha = 1, s=50) #label=(str(group2_label) + ' freezers'), 
 ax = sns.scatterplot(x='loom', y='escape', data=group2, color='tomato', alpha = 1) #label=(str(group2_label) + ' escapers'),
 ax = sns.scatterplot(x='loom', y='esc_none', data=group2, color='lightgrey', alpha = 1, s=50) #label=(str(group2_label) + ' non-responders'), 
+ax.lines[2].set_linestyle('dashed')
 ax.lines[3].set_linestyle('dashed')
-ax.lines[4].set_linestyle('dashed')
 ax.lines[5].set_linestyle('dashed')
 ax.legend(loc='center left', bbox_to_anchor=(1, 0.8)) #1, 0.8
 ax.set_xticks(np.array(range(20)))
@@ -1057,7 +1096,7 @@ plt.savefig(plot_path_pdf_escape_plots+"/"+str(experiment_name+"_grouped_behavio
 
 plt.show()
 plt.clf();
-
+#%%
 plt.figure(figsize=(10,6)) 
 ax = sns.lineplot(x='loom', y='esc_jump', data=clean1, label=(str(group1_label) + ' jumpers'), color='darkslateblue')
 ax = sns.lineplot(x='loom', y='esc_run', data=clean1, label=(str(group1_label) + ' runners'), color='tomato')
@@ -1104,4 +1143,4 @@ plt.savefig(plot_path_pdf_escape_plots+"/"+str(experiment_name+"_different_escap
 plt.show()
 plt.clf();
 #%%
-"""
+
