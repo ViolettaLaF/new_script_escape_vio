@@ -2,14 +2,7 @@
 """
 Created on Wed Nov 11 19:16:08 2020
 
-@author: Matheus Farias
-
-
-
-
-violin plots data is mean time per fly
-and traces are also mean
-should we change it for median? we don't check normality
+@author: Violetta
 """
 
 import tkinter, tkinter.filedialog
@@ -32,7 +25,7 @@ import pickle
 
 def load_path():
     root = tkinter.Tk()
-    filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files')
+    filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files') #select folder called "classified_pose"
     root.destroy()
     return filename
 exp_path = load_path()
@@ -45,9 +38,9 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = '39347_tsh_gal80_GFP_RNAi_KK-5minbase'
+experiment_name = 'VLF-39347_GFP_RNAi_KK-5minbase'
 
-group1_label = 'VLF-39347_tsh_gal80_GFP_RNAi_KK-5minbase'
+group1_label = '39347_GFP_RNAi_KK-5minbase'
 
 #TIME SCALES
 frame_rate = 60
@@ -66,40 +59,7 @@ tot_frame = baseline_frames + stimulation_frames
 number_of_looms= 20
 loom_duration_sec = 0.5
 loom_duration  = loom_duration_sec * frame_rate
-#in frames
-zoom_before_loom_onset = 120
-zoom_after_loom_onset = 600
 
-#For line plots
-bin_size_sec = 0.5
-bin_size = bin_size_sec * frame_rate
-
-bin_size_zoom_sec = 0.05
-bin_size_zoom = bin_size_zoom_sec * frame_rate
-
-#Zoom violin plots data interval selec 
-before_loom_start = 60
-before_loom_end = int(zoom_before_loom_onset)
-before_loom_interval = int(before_loom_end - before_loom_start)
-
-after_loom_start = int(zoom_before_loom_onset + loom_duration)
-after_loom_end = int(after_loom_start + before_loom_interval)
-
-zoom_line_plots_df = pd.DataFrame()
-zoom_violin_plots_df = pd.DataFrame()
-
-#%%
-def heading(dx, dy):
-    degs_lst =[]
-    for i in range(len(dx)):
-        if isinstance(dx[i], str):
-            degs_lst.append('nan')
-        else:
-            rads = atan2(dy[i], dx[i]) 
-            rads %= 2*np.pi
-            degs = math.degrees(rads)
-            degs_lst.append(degs)
-    return degs_lst
 
 #%%
 '''upload scored file'''
@@ -109,33 +69,30 @@ df_all = pd.DataFrame()
 path = exp_path
 jump_velocity = 75
 
-# Dictionary to store aggregate results across all files
-aggregate_window_data = {}
-aggregate_p_values = {}
+behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns!!
+if behavior_files:
+    df_behave_charlie = pd.read_csv(os.path.join(path, behavior_files[0]))
+    print(f"Loaded behavior file: {behavior_files[0]}")
+else:
+    print(f"Warning: No _Behavior.csv file found containing '{group1_label}'!")
+    df_behave_charlie = None
 
-# Initialize aggregate dictionaries with window keys
-window_starts_sec_init = np.arange(0.5, 2, 0.5) #np.arange(0.5, 8.5, 0.5) when Marta was asking me to check till 8 sec after loom onset! 
-for w_sec in window_starts_sec_init:
-    w_key = f"{w_sec:.1f}s"
-    aggregate_window_data[w_key] = {'escape_runs': 0, 'total_looms': 0}
-    aggregate_p_values[w_key] = []
 
-# Create temp directory for storing intermediate data
-if not os.path.exists(plot_path + '/temp_data'):
-    os.makedirs(plot_path + '/temp_data')
-
-for filename in sorted(os.listdir(path+'/scored/')):
-
-    if not filename.endswith('frames.csv'):
+for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the names of the folder where the classified_pose.csv are!!
+    if not filename.endswith('classified_pose.csv'):
         continue
     capital_x = filename.replace('X','x')
-    if not capital_x.startswith(group1_label):
+    if not capital_x.startswith(experiment_name):
         continue
-    df_try = pd.read_csv(path+'/scored/'+filename)
+    df_try = pd.read_csv(path+'/GFP_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
             
-    loom_onset = df_try.loc[df_try['looming_bout'].diff() == 1].index.values.astype(int)
-    loom_offset = df_try.loc[df_try['looming_bout'].diff() == -1].index.values.astype(int)
-   
+    loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
+    loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
+    
+
+    #print(f"Loom onsets: {loom_onset}")
+    #print(f"Loom offsets: {loom_offset}")
+#%%   
     df_try['esc_turn'] = 0
     df_try['esc_run'] = 0
     df_try['esc_jump'] = 0
@@ -151,7 +108,7 @@ for filename in sorted(os.listdir(path+'/scored/')):
     heading_y_before = []
     heading_x_after = []
     heading_y_after = []
-    
+#%%    
     "CHANGING COORDINATE SYSTEM"
     df_try['fly_x_norm_mm'] = df_try['fly_x_norm_mm'] - 15
     df_try['fly_y_norm_mm'] = (df_try['fly_y_norm_mm'] - 15) * -1 
