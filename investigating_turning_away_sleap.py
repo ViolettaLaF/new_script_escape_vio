@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- in this version solved bin problem and all the zerodivision error and max(nan)!!! So this code should always works
+# -*- coding: utf-8 -*- 
 """
 Created on Wed Nov 11 19:16:08 2020
 
@@ -21,7 +21,167 @@ from matplotlib.collections import PolyCollection, PathCollection
 from matplotlib.lines import Line2D
 import pickle
 
-#os.chdir( 'C:/Users/ricmi/Desktop/vTNTxpleGAL4')
+#%%
+def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
+    """
+    Extract orientation before and after turns from all flies pooled together.
+    """
+    all_heading_before = []
+    all_heading_after = []
+    all_heading_diff = []
+    
+    # Loop through each fly's data
+    for df_try, loom_onset in all_flies_data_with_looms:
+        for i in range(len(loom_onset)):
+            # Get the window from loom onset to 120 frames after
+            window_start = loom_onset[i]
+            window_end = loom_onset[i] + 120
+            
+            # Find turns in this window
+            turn_frames = df_try.loc[window_start:window_end][
+                df_try['Charlie_Behavior'] == 'Turn'
+            ].index.tolist()
+            
+            for turn_frame in turn_frames:
+                # Get orientation before the turn (e.g., 5 frames before)
+                if turn_frame >= 5:
+                    heading_before = df_try.loc[turn_frame - 5, 'Orientation']
+                    all_heading_before.append(heading_before)
+                    
+                    # Get orientation after the turn (e.g., 5 frames after)
+                    if turn_frame + 5 < len(df_try):
+                        heading_after = df_try.loc[turn_frame + 5, 'Orientation']
+                        all_heading_after.append(heading_after)
+                        
+                        # Calculate the difference
+                        heading_diff = heading_after - heading_before
+                        all_heading_diff.append(heading_diff)
+    
+    # Create dataframe
+    df_group_polar = pd.DataFrame({
+        'all_heading_before': all_heading_before,
+        'all_heading_after': all_heading_after,
+        'all_heading_diff': all_heading_diff
+    })
+    
+    return df_group_polar
+#%%
+def plot_polar(path, group_name, all_flies_data_with_looms):
+    df_group_polar = data_polar_all_flies(path, group_name, all_flies_data_with_looms)
+    #save_path = path + '/plots/'
+    save_path = path 
+    
+    # Plot heading before
+    degrees_before = df_group_polar['all_heading_before']
+    bin_size = 20
+    a_bef, b = np.histogram(degrees_before, bins=np.arange(0, 360+bin_size, bin_size))
+    centers = np.deg2rad(np.ediff1d(b)//2 + b[:-1])
+    
+    fig = plt.figure(figsize=(10,8))
+    ax = fig.add_subplot(111, projection='polar')
+    ax.bar(centers, a_bef, width=np.deg2rad(bin_size), bottom=0.0, color='yellow', edgecolor='k', alpha=0.6)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_title(group_name + ': heading before')
+    plt.savefig(save_path + group_name + '_polar_before.jpeg', bbox_inches='tight', dpi=1800)
+    plt.show()    
+
+    # Plot heading after
+    degrees_after = df_group_polar['all_heading_after']
+    a_aft, b = np.histogram(degrees_after, bins=np.arange(0, 360+bin_size, bin_size))
+    centers = np.deg2rad(np.ediff1d(b)//2 + b[:-1]) 
+    
+    fig = plt.figure(figsize=(10,8))
+    ax = fig.add_subplot(111, projection='polar')
+    ax.bar(centers, a_aft, width=np.deg2rad(bin_size), bottom=0.0, color='blue', edgecolor='k', alpha=0.6)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_title(group_name + ': heading after')
+    plt.savefig(save_path + group_name + '_polar_after.jpeg', bbox_inches='tight', dpi=1800)
+    plt.show()    
+
+    # Normalize angles to ±180°
+    df_group_polar['degrees_diff'] = df_group_polar['all_heading_diff']
+    for i in range(len(df_group_polar)):
+        if df_group_polar.loc[i, 'all_heading_diff'] > 180:            
+            angle = df_group_polar.loc[i, 'all_heading_diff']
+            df_group_polar.loc[i, 'degrees_diff'] = 360 - angle
+        elif df_group_polar.loc[i, 'all_heading_diff'] < -180:
+            angle = df_group_polar.loc[i, 'all_heading_diff']
+            df_group_polar.loc[i, 'degrees_diff'] = (angle + 360) * -1
+    
+    # Classify turns based on screen at 0°
+    # If screen is at 0°, turning away means the fly's heading after the turn should be further from 0°
+    # We need to check if the turn brings the fly closer to 0° (towards) or further from 0° (away)
+    
+    df_group_polar['away from screen'] = 'away from screen'
+    
+    for i in range(len(df_group_polar)):
+        heading_before = df_group_polar.loc[i, 'all_heading_before']
+        heading_after = df_group_polar.loc[i, 'all_heading_after']
+        
+        # Calculate angular distance from screen (0°) before and after
+        # Angular distance considering wrap-around
+        dist_before = min(abs(heading_before - 0), 360 - abs(heading_before - 0))
+        dist_after = min(abs(heading_after - 0), 360 - abs(heading_after - 0))
+        
+        # If distance increased, fly turned away; if decreased, fly turned towards
+        if dist_after < dist_before:
+            df_group_polar.loc[i, 'away from screen'] = 'towards screen'
+    
+    df_group_polar['flies'] = 'fly'
+
+    # Violin/strip plot
+    hue_order = ["away from screen", "towards screen"]
+    fig, ax = plt.subplots(figsize=(8,6))
+    
+    sns.violinplot(
+        y='degrees_diff', x='flies', hue='away from screen', hue_order=hue_order, 
+        data=df_group_polar, split=True, inner=None, cut=0, linewidth=1.2, 
+        palette={"away from screen": "blue", "towards screen": "orange"}, ax=ax)
+    
+    # Make violin edges opaque and fill faint
+    for col in ax.collections:
+        if isinstance(col, PolyCollection):
+            fc = col.get_facecolor()[0]
+            col.set_facecolor((fc[0], fc[1], fc[2], 0.1))
+            col.set_edgecolor((fc[0], fc[1], fc[2], 0.4))
+            col.set_linewidth(1)
+    
+    sns.stripplot(
+        y='degrees_diff', x='flies', hue='away from screen', hue_order=hue_order, 
+        data=df_group_polar, dodge=True, jitter=True, size=5, marker='o', 
+        linewidth=0.8, palette={"away from screen": "blue", "towards screen": "orange"}, ax=ax)
+    
+    # Make stripplot points hollow
+    for col in ax.collections:
+        if isinstance(col, PathCollection):
+            fc = col.get_facecolors()
+            if fc.size != 0:
+                col.set_edgecolors(fc)
+                col.set_facecolors('none')
+                col.set_linewidth(0.8)
+    
+    # Custom legend
+    legend_handles = [
+        Line2D([0], [0], marker='o', color='none', markeredgecolor="blue", 
+               markerfacecolor='none', markersize=8, markeredgewidth=1.2, label='away from screen'),
+        Line2D([0], [0], marker='o', color='none', markeredgecolor="orange", 
+               markerfacecolor='none', markersize=8, markeredgewidth=1.2, label='towards screen')
+    ]
+    ax.legend(handles=legend_handles, loc='center left', bbox_to_anchor=(0.6, 0.8))
+    
+    ax.set_title(group_name + ': magnitude of turn')
+    ax.set_ylabel('degrees')
+    ax.set_xlabel("")
+    ax.set_xticklabels([])
+    sns.despine()
+    
+    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline.jpeg',
+                bbox_inches='tight', dpi=1800)
+    plt.show()  
+#%%
+
 
 def load_path():
     root = tkinter.Tk()
@@ -38,9 +198,9 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = 'VLF-39347_GFP_RNAi_KK-5minbase'
+experiment_name = 'VLF-39347_GFP_RNAi_KK-5min'
 
-group1_label = '39347_GFP_RNAi_KK-5minbase'
+group1_label = '39347_GFP_RNAi_KK-5min'
 
 #TIME SCALES
 frame_rate = 60
@@ -61,6 +221,7 @@ loom_duration_sec = 0.5
 loom_duration  = loom_duration_sec * frame_rate
 
 
+all_flies_data_with_looms = []
 #%%
 '''upload scored file'''
 
@@ -69,8 +230,8 @@ df_all = pd.DataFrame()
 path = exp_path
 jump_velocity = 75
 
-behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns!!
-if behavior_files:
+behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns included as escape!!
+if behavior_files:                                                                                  #NB. _Behavior.csv need to contain group1_label otherwise will not find it!
     df_behave_charlie = pd.read_csv(os.path.join(path, behavior_files[0]))
     print(f"Loaded behavior file: {behavior_files[0]}")
 else:
@@ -85,22 +246,43 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
     if not capital_x.startswith(experiment_name):
         continue
     df_try = pd.read_csv(path+'/GFP_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
-            
+
+    # Add Charlie behavior data to df_try if available
+    if df_behave_charlie is not None:
+        # Find the column that ends with the current filename (ignoring path prefix)
+        matching_column = None
+        for col in df_behave_charlie.columns:
+            if col.endswith(filename):
+                matching_column = col
+                break
+    
+        if matching_column:
+            # Create a temporary dataframe with frame and behavior for this fly
+            df_behavior_temp = df_behave_charlie[['frame', matching_column]].copy()
+            df_behavior_temp.columns = ['frame', 'Charlie_Behavior']  # Rename for clarity    
+            df_try = df_try.merge(df_behavior_temp, left_on='FrameIndex', right_on='frame', how='left') # Merge with df_try based on frame alignment   
+            df_try = df_try.drop('frame', axis=1)             # Drop the redundant 'frame' column after merge   
+            print(f"Added behavior data for {filename}")
+        else:
+            print(f"Warning: No column ending with '{filename}' found in behavior file")
+            df_try['Charlie_Behavior'] = None
+    else:
+        df_try['Charlie_Behavior'] = None
+    
+        
     loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
     loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-    
 
-    #print(f"Loom onsets: {loom_onset}")
-    #print(f"Loom offsets: {loom_offset}")
+    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets)  
 #%%   
     df_try['esc_turn'] = 0
     df_try['esc_run'] = 0
     df_try['esc_jump'] = 0
-    df_try['esc_freeze'] = 0
-    df_try['escape'] = 0
-    df_try['turn_run'] = 0
+    df_try['backwards'] = 0
+    df_try['walk_away'] = 0
+    df_try['escape'] = 0 #containing all form of escape: esc_turn, esc_run, esc_jump, backwards, 'walk_away'
+    df_try['freeze'] = 0 # this before was called 'esc_freeze' contain freeze and resistent freeze
     df_try['walk_speed'] = np.nan
-    df_try['walk_speed_bout'] = np.nan
     df_try['speed2d'] = np.nan
 
     '''checking turns'''
@@ -110,39 +292,52 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
     heading_y_after = []
 #%%    
     "CHANGING COORDINATE SYSTEM"
-    df_try['fly_x_norm_mm'] = df_try['fly_x_norm_mm'] - 15
-    df_try['fly_y_norm_mm'] = (df_try['fly_y_norm_mm'] - 15) * -1 
+    #df_try['fly_x_norm_mm'] = df_try['fly_x_norm_mm'] - 15) probably unnecessary because the orientation was already calculated!!
+    #df_try['fly_y_norm_mm'] = (df_try['fly_y_norm_mm'] - 15)  
     
-    df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']
-    df_try.loc[(df_try['walk_bout'] == 1), 'walk_speed_bout'] = df_try['velocity']
-    df_try.loc[(df_try['velocity'] < jump_velocity), 'speed2d'] = df_try['velocity']
+    #df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']
+    
+    df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
+    df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed 
     
     
-        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH
+        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run!
     print(f"Cleaning velocity data for {filename}...")
     
     # Step 1: Create a cleaned velocity column (remove jumps)
-    df_try['velocity_clean'] = df_try['velocity'].copy()
+    df_try['walk_velocity_clean'] = df_try['walk_speed'].copy()
     
     # Mark frames with jumps as NaN
-    df_try.loc[df_try['jumps'] == 1, 'velocity_clean'] = np.nan
+    df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan
     
     # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
-    for idx in df_try[df_try['jumps'] == 1].index:
+    for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index:
         if idx >= 6:
-            df_try.loc[idx-6:idx-1, 'velocity_clean'] = np.nan
+            df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
         if idx <= len(df_try) - 7:
-            df_try.loc[idx+1:idx+6, 'velocity_clean'] = np.nan
+            df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
     
     # Step 2: Apply running average (7 frames) - NaNs will be skipped
-    df_try['velocity_smooth'] = df_try['velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
-    
-    print(f"  Frames with jumps removed: {df_try['jumps'].sum()}\n")
-        #%%    
-    
+    df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()       
+ #%%
+    '''checking jumps, freeze, backwards'''
+    for i in range(len(loom_onset)):
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
+            df_try.loc[loom_offset[i], 'esc_jump'] = 1
+     
+        elif ((df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
+              (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 0:
+            df_try.loc[loom_offset[i], 'freeze'] = 1
+            
+        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
+            df_try.loc[loom_offset[i], 'backwards'] = 1
+ #%%            
+plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+        #%% 
+"""        
     for loom in range(len(df_try)):    
         if loom in loom_onset:
-            if df_try.loc[loom,'freeze_bout'] == 1:
+            if df_try.loc[loom,'freeze_bout'] == 1: #excluding freezing to calculate heading!! I don't need all of this now!!
                 x_before = 'nan'
                 y_before = 'nan'
             else:
@@ -166,16 +361,9 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
             continue
         elif (heading_y_before[i] > 0) & (heading_y_after[i] < 0):
             df_try.loc[loom_offset[i], 'esc_turn'] = 1       
-
-    '''checking jumps and freeze'''
-    for i in range(len(loom_onset)):
-        if df_try.loc[loom_onset[i]:(loom_onset[i]+120), 'jumps'].sum() > 0:
-            df_try.loc[loom_offset[i], 'esc_jump'] = 1
- 
-        elif df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'freeze_bout'].sum() > 0:
-            df_try.loc[loom_offset[i], 'esc_freeze'] = 1
-
-#%% Plot to visualize smoothing effect 
+"""
+#%% Plot to visualize smoothing effect
+""" 
         # Pick a random loom to visualize
     if len(loom_offset) > 0:
         test_loom = loom_offset[0]
@@ -322,72 +510,6 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
         else:
             print(f"  → No significant p-values\n")
 
-    #%% PLOT: P-VALUES ACROSS ALL WINDOWS (per file)
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-    ax = axes[0, 0]
-    n_escapes_per_window = [sum(window_escape_runs[w]) for w in window_results.keys()]
-    ax.plot(window_starts_sec, n_escapes_per_window, 'o-', linewidth=2, markersize=8, color='steelblue')
-    ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
-    ax.set_ylabel('Number of escape runs', fontsize=12)
-    ax.set_title('Escape Runs Detected vs Window Position', fontsize=13, fontweight='bold')
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[0, 1]
-    mean_p_values = []
-    for w in window_results.keys():
-        p_vals = [window_p_values[w][i] for i in range(len(window_escape_runs[w])) 
-                  if window_escape_runs[w][i] == 1 and window_p_values[w][i] < 0.05 and not np.isnan(window_p_values[w][i])]
-        mean_p_values.append(np.mean(p_vals) if p_vals else np.nan)
-    ax.plot(window_starts_sec, mean_p_values, 'o-', linewidth=2, markersize=8, color='coral')
-    ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
-    ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
-    ax.set_ylabel('Mean p-value (escape runs only)', fontsize=12)
-    ax.set_title('Statistical Significance vs Window Position\n(Escape Runs Only)', fontsize=13, fontweight='bold')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[1, 0]
-    p_vals_for_box = []
-    for w in window_results.keys():
-        p_vals = [window_p_values[w][i] for i in range(len(window_escape_runs[w])) 
-                  if window_escape_runs[w][i] == 1]
-        p_vals_for_box.append(p_vals)
-    
-    bp = ax.boxplot(p_vals_for_box, labels=[f"{w}" for w in window_results.keys()], patch_artist=True)
-    for patch in bp['boxes']:
-        patch.set_facecolor('lightblue')
-    ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
-    ax.set_xlabel('Window start time (sec)', fontsize=12)
-    ax.set_ylabel('P-value', fontsize=12)
-    ax.set_title('Distribution of P-values Across Windows\n(Escape Runs Only)', fontsize=13, fontweight='bold')
-    ax.legend()
-    ax.grid(True, alpha=0.3, axis='y')
-    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45)
-
-    ax = axes[1, 1]
-    ax.axis('off')
-    summary_data = []
-    for w in window_results.keys():
-        n_esc = sum(window_escape_runs[w])
-        p_vals = [p for p in window_p_values[w] if p < 0.05 and not np.isnan(p)]
-        mean_p = np.mean(p_vals) if p_vals else np.nan
-        summary_data.append([w, n_esc, f"{mean_p:.4f}" if not np.isnan(mean_p) else "N/A"])
-
-    table = ax.table(cellText=summary_data, 
-                    colLabels=['Window (sec)', 'N Escapes', 'Mean p-value'],
-                    cellLoc='center', loc='center', fontsize=10)
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 2)
-
-    plt.tight_layout()
-    filename_base = filename.replace('_frames.csv', '')
-    plt.savefig(plot_path + f'/sliding_window_{filename_base}.png', dpi=300, bbox_inches='tight')
-    plt.savefig(plot_path_pdf + f'/sliding_window_{filename_base}.pdf', bbox_inches='tight')
-    print(f"Saved: sliding_window_{filename_base}.png/pdf")
-    plt.show()
-
     #%% MODIFICATION 1: PLOT SPEED PROFILES TO 10 SECONDS
     windows_to_plot = ['0.5s', '2.0s', '4.0s', '8.0s']
 
@@ -521,88 +643,6 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
             #plt.savefig(plot_path_pdf + f'/individual_non_escape_examples_{filename_base}.pdf', bbox_inches='tight')
             print(f"Saved: individual_non_esc_{filename_base}.png/pdf")
             plt.show()
-
-    #%% SUMMARY FOR THIS FILE
-    print("\n" + "="*60)
-    print(f"SLIDING WINDOW ANALYSIS SUMMARY - {filename}")
-    print("="*60)
-    for w in sorted(window_results.keys()):
-        n_esc = sum(window_escape_runs[w])
-        p_vals = [p for p in window_p_values[w] if p < 0.05 and not np.isnan(p)]
-        mean_p = np.mean(p_vals) if p_vals else np.nan
-        print(f"\nWindow: {w} after loom onset")
-        print(f"  Escape runs: {n_esc}")
-        print(f"  Mean p-value: {mean_p:.4f}" if not np.isnan(mean_p) else "  Mean p-value: N/A")
-        
-        # Aggregate data
-        aggregate_window_data[w]['escape_runs'] += n_esc
-        aggregate_window_data[w]['total_looms'] += len(loom_onset)
-        aggregate_p_values[w].extend(p_vals)
-    
-    print("\n" + "="*60 + "\n")
-    
-    # Save window escape runs for aggregate plotting (MODIFICATION 3)
-    with open(plot_path + f'/temp_data/escape_runs_{filename_base}.pkl', 'wb') as f:
-        pickle.dump({
-            'window_escape_runs': window_escape_runs,
-            'loom_offset': loom_offset,
-            'filename': filename
-        }, f)
-
-#%% AGGREGATE SUMMARY ACROSS ALL FILES
-print("\n\n" + "="*70)
-print("AGGREGATE SUMMARY - ALL FILES COMBINED")
-print("="*70)
-
-for w in sorted(aggregate_window_data.keys()):
-    n_esc = aggregate_window_data[w]['escape_runs']
-    total = aggregate_window_data[w]['total_looms']
-    p_vals = aggregate_p_values[w]
-    mean_p = np.mean(p_vals) if p_vals else np.nan
-    percent_esc = (n_esc / total * 100) if total > 0 else 0
-    
-    print(f"\nWindow: {w} after loom onset")
-    print(f"  Escape runs: {n_esc} / {total} ({percent_esc:.1f}%)")
-    print(f"  Mean p-value (escape runs only): {mean_p:.4f}" if not np.isnan(mean_p) else "  Mean p-value: N/A")
-    print(f"  Number of significant looms: {len(p_vals)}")
-
-print("\n" + "="*70)
-
-#%% AGGREGATE PLOT: BEST WINDOW ACROSS ALL FILES
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-ax = axes[0]
-windows_list = sorted(aggregate_window_data.keys())
-escape_percentages = [(aggregate_window_data[w]['escape_runs'] / aggregate_window_data[w]['total_looms'] * 100) 
-                      for w in windows_list]
-window_positions = [float(w.replace('s', '')) for w in windows_list]
-ax.plot(window_positions, escape_percentages, 'o-', linewidth=2, markersize=10, color='darkgreen')
-ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
-ax.set_ylabel('% Escape Runs', fontsize=12)
-ax.set_title('Escape Run Detection Rate Across All Files', fontsize=13, fontweight='bold')
-ax.grid(True, alpha=0.3)
-ax.set_xticks(window_positions)
-
-ax = axes[1]
-mean_p_per_window = [np.mean(aggregate_p_values[w]) if aggregate_p_values[w] else np.nan 
-                     for w in windows_list]
-ax.plot(window_positions, mean_p_per_window, 'o-', linewidth=2, markersize=10, color='darkred')
-ax.axhline(y=0.05, color='red', linestyle='--', alpha=0.5, label='p=0.05')
-ax.set_xlabel('Window start time after loom onset (sec)', fontsize=12)
-ax.set_ylabel('Mean p-value', fontsize=12)
-ax.set_title('Statistical Significance Across All Files', fontsize=13, fontweight='bold')
-ax.legend()
-ax.grid(True, alpha=0.3)
-ax.set_xticks(window_positions)
-
-plt.tight_layout()
-plt.savefig(plot_path + '/aggregate_window_analysis.png', dpi=300, bbox_inches='tight')
-plt.savefig(plot_path_pdf + '/aggregate_window_analysis.pdf', bbox_inches='tight')
-print("\nSaved: aggregate_window_analysis.png/pdf")
-plt.show()
-
-print("\n" + "="*70 + "\n")
-
 #%% MODIFICATION 3: AGGREGATE SPEED PLOT ACROSS ALL DATASET
 all_escape_speeds = []
 all_non_escape_speeds = []
@@ -686,7 +726,7 @@ print("Cleaned up temporary files")
 print("\n" + "="*70)
 print("ALL ANALYSIS COMPLETE!")
 print("="*70)
-    
+"""    
             
 #    '''slicing dataframe from esc_turn until end''' #I'm commenting everything here as I don't need right now!!
 #    df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
