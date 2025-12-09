@@ -15,12 +15,10 @@ import seaborn as sns
 import math
 import tkinter, tkinter.filedialog
 import math
-from math import atan2
 from scipy.stats import ttest_ind
 from matplotlib.collections import PolyCollection, PathCollection
 from matplotlib.lines import Line2D
 import pickle
-
 #%%
 def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
     """
@@ -43,14 +41,14 @@ def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
             ].index.tolist()
             
             for turn_frame in turn_frames:
-                # Get orientation before the turn (e.g., 5 frames before)
-                if turn_frame >= 5:
-                    heading_before = df_try.loc[turn_frame - 5, 'Orientation']
+                # Get orientation before the turn (e.g., 3 frames before)
+                if turn_frame >= 3:
+                    heading_before = df_try.loc[turn_frame - 3, 'orientation_smooth']
                     all_heading_before.append(heading_before)
                     
-                    # Get orientation after the turn (e.g., 5 frames after)
-                    if turn_frame + 5 < len(df_try):
-                        heading_after = df_try.loc[turn_frame + 5, 'Orientation']
+                    # Get orientation after the turn (e.g., 3 frames after)
+                    if turn_frame + 3 < len(df_try):
+                        heading_after = df_try.loc[turn_frame + 3, 'orientation_smooth']
                         all_heading_after.append(heading_after)
                         
                         # Calculate the difference
@@ -121,7 +119,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
         heading_after = df_group_polar.loc[i, 'all_heading_after']
         
         # Calculate angular distance from screen (0°) before and after
-        # Angular distance considering wrap-around
+        # Angular distance considering wrap-around (so possible minimum angle, es: a 270 turn is considered a 90 turn)
         dist_before = min(abs(heading_before - 0), 360 - abs(heading_before - 0))
         dist_after = min(abs(heading_after - 0), 360 - abs(heading_after - 0))
         
@@ -179,6 +177,122 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     
     plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline.jpeg',
                 bbox_inches='tight', dpi=1800)
+    plt.show()
+    
+#%%
+def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
+    df_group_polar = data_polar_all_flies(path, group_name, all_flies_data_with_fake_looms)
+    #save_path = path + '/plots/'
+    save_path = path 
+    
+    # Plot heading before
+    degrees_before = df_group_polar['all_heading_before']
+    bin_size = 20
+    a_bef, b = np.histogram(degrees_before, bins=np.arange(0, 360+bin_size, bin_size))
+    centers = np.deg2rad(np.ediff1d(b)//2 + b[:-1])
+    
+    fig = plt.figure(figsize=(10,8))
+    ax = fig.add_subplot(111, projection='polar')
+    ax.bar(centers, a_bef, width=np.deg2rad(bin_size), bottom=0.0, color='yellow', edgecolor='k', alpha=0.6)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_title(group_name + ': heading before')
+    plt.savefig(save_path + group_name + '_polar_before_fake.jpeg', bbox_inches='tight', dpi=1800)
+    plt.show()    
+
+    # Plot heading after
+    degrees_after = df_group_polar['all_heading_after']
+    a_aft, b = np.histogram(degrees_after, bins=np.arange(0, 360+bin_size, bin_size))
+    centers = np.deg2rad(np.ediff1d(b)//2 + b[:-1]) 
+    
+    fig = plt.figure(figsize=(10,8))
+    ax = fig.add_subplot(111, projection='polar')
+    ax.bar(centers, a_aft, width=np.deg2rad(bin_size), bottom=0.0, color='blue', edgecolor='k', alpha=0.6)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_title(group_name + ': heading after')
+    plt.savefig(save_path + group_name + '_polar_after_fake.jpeg', bbox_inches='tight', dpi=1800)
+    plt.show()    
+
+    # Normalize angles to ±180°
+    df_group_polar['degrees_diff'] = df_group_polar['all_heading_diff']
+    for i in range(len(df_group_polar)):
+        if df_group_polar.loc[i, 'all_heading_diff'] > 180:            
+            angle = df_group_polar.loc[i, 'all_heading_diff']
+            df_group_polar.loc[i, 'degrees_diff'] = 360 - angle
+        elif df_group_polar.loc[i, 'all_heading_diff'] < -180:
+            angle = df_group_polar.loc[i, 'all_heading_diff']
+            df_group_polar.loc[i, 'degrees_diff'] = (angle + 360) * -1
+    
+    # Classify turns based on screen at 0°
+    # If screen is at 0°, turning away means the fly's heading after the turn should be further from 0°
+    # We need to check if the turn brings the fly closer to 0° (towards) or further from 0° (away)
+    
+    df_group_polar['away from screen'] = 'away from screen'
+    
+    for i in range(len(df_group_polar)):
+        heading_before = df_group_polar.loc[i, 'all_heading_before']
+        heading_after = df_group_polar.loc[i, 'all_heading_after']
+        
+        # Calculate angular distance from screen (0°) before and after
+        # Angular distance considering wrap-around (so possible minimum angle, es: a 270 turn is considered a 90 turn)
+        dist_before = min(abs(heading_before - 0), 360 - abs(heading_before - 0))
+        dist_after = min(abs(heading_after - 0), 360 - abs(heading_after - 0))
+        
+        # If distance increased, fly turned away; if decreased, fly turned towards
+        if dist_after < dist_before:
+            df_group_polar.loc[i, 'away from screen'] = 'towards screen'
+    
+    df_group_polar['flies'] = 'fly'
+
+    # Violin/strip plot
+    hue_order = ["away from screen", "towards screen"]
+    fig, ax = plt.subplots(figsize=(8,6))
+    
+    sns.violinplot(
+        y='degrees_diff', x='flies', hue='away from screen', hue_order=hue_order, 
+        data=df_group_polar, split=True, inner=None, cut=0, linewidth=1.2, 
+        palette={"away from screen": "blue", "towards screen": "orange"}, ax=ax)
+    
+    # Make violin edges opaque and fill faint
+    for col in ax.collections:
+        if isinstance(col, PolyCollection):
+            fc = col.get_facecolor()[0]
+            col.set_facecolor((fc[0], fc[1], fc[2], 0.1))
+            col.set_edgecolor((fc[0], fc[1], fc[2], 0.4))
+            col.set_linewidth(1)
+    
+    sns.stripplot(
+        y='degrees_diff', x='flies', hue='away from screen', hue_order=hue_order, 
+        data=df_group_polar, dodge=True, jitter=True, size=5, marker='o', 
+        linewidth=0.8, palette={"away from screen": "blue", "towards screen": "orange"}, ax=ax)
+    
+    # Make stripplot points hollow
+    for col in ax.collections:
+        if isinstance(col, PathCollection):
+            fc = col.get_facecolors()
+            if fc.size != 0:
+                col.set_edgecolors(fc)
+                col.set_facecolors('none')
+                col.set_linewidth(0.8)
+    
+    # Custom legend
+    legend_handles = [
+        Line2D([0], [0], marker='o', color='none', markeredgecolor="blue", 
+               markerfacecolor='none', markersize=8, markeredgewidth=1.2, label='away from screen'),
+        Line2D([0], [0], marker='o', color='none', markeredgecolor="orange", 
+               markerfacecolor='none', markersize=8, markeredgewidth=1.2, label='towards screen')
+    ]
+    ax.legend(handles=legend_handles, loc='center left', bbox_to_anchor=(0.6, 0.8))
+    
+    ax.set_title(group_name + ': magnitude of turn')
+    ax.set_ylabel('degrees')
+    ax.set_xlabel("")
+    ax.set_xticklabels([])
+    sns.despine()
+    
+    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_fake.jpeg',
+                bbox_inches='tight', dpi=1800)
     plt.show()  
 #%%
 
@@ -221,7 +335,8 @@ loom_duration_sec = 0.5
 loom_duration  = loom_duration_sec * frame_rate
 
 
-all_flies_data_with_looms = []
+all_flies_data_with_looms = [] #is a list of tupla: with the df_try and an array with loom onset for every fly!
+all_flies_data_with_fake_looms = [] #is a list of tupla: with the df_try and an array with fake loom onset (same inter loom interval but during baseline) for every fly!
 #%%
 '''upload scored file'''
 
@@ -256,8 +371,7 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
                 matching_column = col
                 break
     
-        if matching_column:
-            # Create a temporary dataframe with frame and behavior for this fly
+        if matching_column:    # Create a temporary dataframe with frame and behavior for this fly
             df_behavior_temp = df_behave_charlie[['frame', matching_column]].copy()
             df_behavior_temp.columns = ['frame', 'Charlie_Behavior']  # Rename for clarity    
             df_try = df_try.merge(df_behavior_temp, left_on='FrameIndex', right_on='frame', how='left') # Merge with df_try based on frame alignment   
@@ -268,12 +382,13 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
             df_try['Charlie_Behavior'] = None
     else:
         df_try['Charlie_Behavior'] = None
-    
-        
+            
     loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
     loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-
-    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets)  
+    loom_onset_fake = loom_onset - baseline_frames
+    
+    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
+    all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
 #%%   
     df_try['esc_turn'] = 0
     df_try['esc_run'] = 0
@@ -290,35 +405,28 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
     heading_y_before = []
     heading_x_after = []
     heading_y_after = []
-#%%    
-    "CHANGING COORDINATE SYSTEM"
-    #df_try['fly_x_norm_mm'] = df_try['fly_x_norm_mm'] - 15) probably unnecessary because the orientation was already calculated!!
-    #df_try['fly_y_norm_mm'] = (df_try['fly_y_norm_mm'] - 15)  
     
-    #df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']
-    
+    #df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']    
     df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
-    df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed 
-    
-    
-        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run!
-    print(f"Cleaning velocity data for {filename}...")
-    
+    df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed     
+        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run! Do the same for orientation important for heading for escape turn!
     # Step 1: Create a cleaned velocity column (remove jumps)
     df_try['walk_velocity_clean'] = df_try['walk_speed'].copy()
-    
+    df_try['orientation_clean'] = df_try['Orientation'].copy()    
     # Mark frames with jumps as NaN
     df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan
-    
+    df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'orientation_clean'] = np.nan    
     # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
     for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index:
         if idx >= 6:
             df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
+            df_try.loc[idx-6:idx-1, 'orientation_clean'] = np.nan
         if idx <= len(df_try) - 7:
             df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
-    
+            df_try.loc[idx+1:idx+6, 'orientation_clean'] = np.nan    
     # Step 2: Apply running average (7 frames) - NaNs will be skipped
-    df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()       
+    df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
+    df_try['orientation_smooth'] = df_try['orientation_clean'].rolling(window=7, center=True, min_periods=1).mean()       
  #%%
     '''checking jumps, freeze, backwards'''
     for i in range(len(loom_onset)):
@@ -333,6 +441,7 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
             df_try.loc[loom_offset[i], 'backwards'] = 1
  #%%            
 plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+plot_polar(exp_path, group1_label, all_flies_data_with_fake_looms)
         #%% 
 """        
     for loom in range(len(df_try)):    
