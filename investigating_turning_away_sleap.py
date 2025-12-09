@@ -441,7 +441,7 @@ for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the 
             df_try.loc[loom_offset[i], 'backwards'] = 1
  #%%            
 plot_polar(exp_path, group1_label, all_flies_data_with_looms)
-plot_polar(exp_path, group1_label, all_flies_data_with_fake_looms)
+plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
         #%% 
 """        
     for loom in range(len(df_try)):    
