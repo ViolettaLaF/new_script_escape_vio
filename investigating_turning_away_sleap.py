@@ -312,9 +312,9 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = 'VLF-39347_GFP_RNAi_KK-5min'
+experiment_name = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
 
-group1_label = '39347_GFP_RNAi_KK-5min'
+group1_label = '39347_tsh_gal80_DH44_RNAi_TRIP-5min'
 
 #TIME SCALES
 frame_rate = 60
@@ -354,13 +354,13 @@ else:
     df_behave_charlie = None
 
 
-for filename in sorted(os.listdir(path+'/GFP_RNAi/')): #to change here with the names of the folder where the classified_pose.csv are!!
+for filename in sorted(os.listdir(path+'/DH44_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!
     if not filename.endswith('classified_pose.csv'):
         continue
     capital_x = filename.replace('X','x')
     if not capital_x.startswith(experiment_name):
         continue
-    df_try = pd.read_csv(path+'/GFP_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
+    df_try = pd.read_csv(path+'/DH44_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
 
     # Add Charlie behavior data to df_try if available
     if df_behave_charlie is not None:
