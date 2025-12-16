@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-  at the moment try to do things separately for 'Floor_Turn' and 'Turn' (Turn = wall turn)
 """
 Created on Wed Nov 11 19:16:08 2020
 
@@ -19,10 +19,66 @@ from scipy.stats import ttest_ind
 from matplotlib.collections import PolyCollection, PathCollection
 from matplotlib.lines import Line2D
 import pickle
+
 #%%
+def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_Behavior'):
+    """
+    Identify bouts of a specific behavior in a dataframe.
+    A bout is a continuous sequence of frames with the same behavior label.
+    
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        Dataframe with behavior data
+    behavior_label : str
+        The behavior to identify (e.g., 'Turn', 'Freeze', 'Jump')
+    behavior_column : str
+        Name of the column containing behavior labels
+    
+    Returns:
+    --------
+    list of dict
+        Each dict contains: {'start': frame_index, 'end': frame_index, 'duration': num_frames}
+    """
+    # Find all frames with the specified behavior
+    behavior_mask = df[behavior_column] == behavior_label
+    behavior_frames = df[behavior_mask].index.tolist()
+    
+    if len(behavior_frames) == 0:
+        return []
+    
+    # Identify bouts (consecutive sequences)
+    bouts = []
+    current_bout_start = behavior_frames[0]
+    current_bout_end = behavior_frames[0]
+    
+    for j in range(1, len(behavior_frames)):
+        # If consecutive frame, extend current bout
+        if behavior_frames[j] == behavior_frames[j-1] + 1:
+            current_bout_end = behavior_frames[j]
+        else:
+            # Save current bout and start a new one
+            bouts.append({
+                'start': current_bout_start,
+                'end': current_bout_end,
+                'duration': current_bout_end - current_bout_start + 1
+            })
+            current_bout_start = behavior_frames[j]
+            current_bout_end = behavior_frames[j]
+    
+    # Don't forget the last bout
+    bouts.append({
+        'start': current_bout_start,
+        'end': current_bout_end,
+        'duration': current_bout_end - current_bout_start + 1
+    })
+    
+    return bouts
+
+#new to verify if works
 def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
     """
-    Extract orientation before and after turns from all flies pooled together.
+    Extract orientation before and after turn bouts from all flies pooled together.
     """
     all_heading_before = []
     all_heading_after = []
@@ -35,20 +91,26 @@ def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
             window_start = loom_onset[i]
             window_end = loom_onset[i] + 120
             
-            # Find turns in this window
-            turn_frames = df_try.loc[window_start:window_end][
-                df_try['Charlie_Behavior'] == 'Turn'
-            ].index.tolist()
+            # Create a subset dataframe for this window
+            df_window = df_try.loc[window_start:window_end].copy()
             
-            for turn_frame in turn_frames:
-                # Get orientation before the turn (e.g., 3 frames before)
-                if turn_frame >= 3:
-                    heading_before = df_try.loc[turn_frame - 3, 'orientation_smooth']
-                    all_heading_before.append(heading_before)
+            # Identify turn bouts in this window
+            turn_bouts = identify_behavior_bouts(df_window, behavior_label='Turn')
+            
+            # For each turn bout, get orientation before and after
+            for bout in turn_bouts:
+                bout_start = bout['start']
+                bout_end = bout['end']
+                
+                # Get orientation before the bout starts (e.g., 1 frames before)
+                if bout_start >= 1:
+                    heading_before = df_try.loc[bout_start - 3, 'orientation_smooth']
                     
-                    # Get orientation after the turn (e.g., 3 frames after)
-                    if turn_frame + 3 < len(df_try):
-                        heading_after = df_try.loc[turn_frame + 3, 'orientation_smooth']
+                    # Get orientation after the bout ends (e.g., 1 frames after)
+                    if bout_end + 1 < len(df_try):
+                        heading_after = df_try.loc[bout_end + 3, 'orientation_smooth']
+                        
+                        all_heading_before.append(heading_before)
                         all_heading_after.append(heading_after)
                         
                         # Calculate the difference
@@ -63,6 +125,88 @@ def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
     })
     
     return df_group_polar
+
+#%%
+def analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn'):
+    """
+    Analyze bout duration distribution during entire baseline and stimulation periods.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset) - loom_onset is not used here
+    baseline_frames : int
+        Number of frames in baseline period
+    behavior_label : str
+        The behavior to analyze
+    
+    Returns:
+    --------
+    dict with 'baseline' and 'stimulation' keys, each containing bout statistics
+    """
+    baseline_durations = []
+    stimulation_durations = []
+    baseline_counts = []
+    stimulation_counts = []
+    
+    for df_try, _ in all_flies_data_with_looms:  # Use _ to indicate we're ignoring loom_onset
+        # Baseline period (frames 0 to baseline_frames)
+        df_baseline = df_try.loc[:baseline_frames].copy()
+        baseline_bouts = identify_behavior_bouts(df_baseline, behavior_label=behavior_label)
+        baseline_durations.extend([bout['duration'] for bout in baseline_bouts])
+        baseline_counts.append(len(baseline_bouts))
+        
+        # Stimulation period (frames baseline_frames to end)
+        df_stimulation = df_try.loc[baseline_frames:].copy()
+        stimulation_bouts = identify_behavior_bouts(df_stimulation, behavior_label=behavior_label)
+        stimulation_durations.extend([bout['duration'] for bout in stimulation_bouts])
+        stimulation_counts.append(len(stimulation_bouts))
+    
+    return {
+        'baseline': {
+            'durations': baseline_durations,
+            'counts': baseline_counts,
+            'total_bouts': len(baseline_durations),
+            'mean_duration': np.mean(baseline_durations) if baseline_durations else 0,
+            'median_duration': np.median(baseline_durations) if baseline_durations else 0,
+            'std_duration': np.std(baseline_durations) if baseline_durations else 0
+        },
+        'stimulation': {
+            'durations': stimulation_durations,
+            'counts': stimulation_counts,
+            'total_bouts': len(stimulation_durations),
+            'mean_duration': np.mean(stimulation_durations) if stimulation_durations else 0,
+            'median_duration': np.median(stimulation_durations) if stimulation_durations else 0,
+            'std_duration': np.std(stimulation_durations) if stimulation_durations else 0
+        }
+    }
+
+
+def save_bout_statistics(bout_data, group_name, save_path):
+    """
+    Save bout statistics to a CSV file.
+    """
+    stats_dict = {
+        'Group': [group_name, group_name],
+        'Period': ['Baseline', 'Stimulation'],
+        'Total_Bouts': [bout_data['baseline']['total_bouts'], bout_data['stimulation']['total_bouts']],
+        'Mean_Duration_frames': [bout_data['baseline']['mean_duration'], bout_data['stimulation']['mean_duration']],
+        'Median_Duration_frames': [bout_data['baseline']['median_duration'], bout_data['stimulation']['median_duration']],
+        'Std_Duration_frames': [bout_data['baseline']['std_duration'], bout_data['stimulation']['std_duration']],
+        'Mean_Count_per_Fly': [np.mean(bout_data['baseline']['counts']), np.mean(bout_data['stimulation']['counts'])],
+        'Std_Count_per_Fly': [np.std(bout_data['baseline']['counts']), np.std(bout_data['stimulation']['counts'])]
+    }
+    
+    df_stats = pd.DataFrame(stats_dict)
+    df_stats.to_csv(save_path + group_name + '_bout_statistics.csv', index=False)
+    print(f"Statistics saved to: {save_path + group_name}_bout_statistics.csv")
+    
+    return df_stats
+
+#%%
+
+
+
 #%%
 def plot_polar(path, group_name, all_flies_data_with_looms):
     df_group_polar = data_polar_all_flies(path, group_name, all_flies_data_with_looms)
@@ -312,9 +456,9 @@ plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 
-experiment_name = 'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
 
-group1_label = '39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_label = 'VLF-39347'
 
 #TIME SCALES
 frame_rate = 60
@@ -354,13 +498,13 @@ else:
     df_behave_charlie = None
 
 
-for filename in sorted(os.listdir(path+'/DH44_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!
+for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
     if not filename.endswith('classified_pose.csv'):
         continue
     capital_x = filename.replace('X','x')
     if not capital_x.startswith(experiment_name):
         continue
-    df_try = pd.read_csv(path+'/DH44_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
+    df_try = pd.read_csv(path+'/control_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
 
     # Add Charlie behavior data to df_try if available
     if df_behave_charlie is not None:
@@ -440,8 +584,89 @@ for filename in sorted(os.listdir(path+'/DH44_RNAi/')): #NB. to change here with
         elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
             df_try.loc[loom_offset[i], 'backwards'] = 1
  #%%            
-plot_polar(exp_path, group1_label, all_flies_data_with_looms)
-plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
+#plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+#plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
+ #%% 
+
+def plot_bout_analysis(bout_data, group_name, save_path):
+    """
+    Plot bout duration distributions (log scale) and counts for baseline vs stimulation.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+    
+    # Plot 1: Bout duration distribution (log scale)
+    ax1 = axes[0]
+    baseline_dur = bout_data['baseline']['durations']
+    stim_dur = bout_data['stimulation']['durations']
+    
+    bins=1000
+    
+    ax1.set_xlim(0, 400)
+    ax1.hist(baseline_dur, bins=bins, alpha=0.5, label='Baseline', color='blue', )
+    ax1.hist(stim_dur, bins=bins, alpha=0.5, label='Stimulation', color='orange')
+    #ax1.set_xscale('log') #otherwise bins have different size!
+    ax1.set_yscale('log')
+    ax1.set_xlabel('Bout Duration (frames, log scale)')
+    ax1.set_ylabel('Count')
+    ax1.set_title(f'{group_name}: Turn Bout Duration Distribution')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Total bout counts (baseline vs stimulation)
+    ax2 = axes[1]
+    total_counts = [bout_data['baseline']['total_bouts'], bout_data['stimulation']['total_bouts']]
+    colors = ['blue', 'orange']
+    bars = ax2.bar(['Baseline', 'Stimulation'], total_counts, color=colors, alpha=0.7, edgecolor='black')
+    
+    # Add count labels on bars
+    for bar, count in zip(bars, total_counts):
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(count)}',
+                ha='center', va='bottom', fontsize=12, fontweight='bold')
+    
+    ax2.set_ylabel('Total Number of Turn Bouts')
+    ax2.set_title(f'{group_name}: Total Turn Bout Count')
+    
+    # Plot 3: Bout counts per fly (boxplot)
+    ax3 = axes[2]
+    baseline_counts = bout_data['baseline']['counts']
+    stim_counts = bout_data['stimulation']['counts']
+    
+    positions = [1, 2]
+    bp = ax3.boxplot([baseline_counts, stim_counts], positions=positions, widths=0.6,
+                      patch_artist=True, labels=['Baseline', 'Stimulation'])
+    bp['boxes'][0].set_facecolor('blue')
+    bp['boxes'][0].set_alpha(0.7)
+    bp['boxes'][1].set_facecolor('orange')
+    bp['boxes'][1].set_alpha(0.7)
+    
+    # Add individual points
+    for i, counts in enumerate([baseline_counts, stim_counts], 1):
+        x = np.random.normal(i, 0.04, size=len(counts))
+        ax3.scatter(x, counts, alpha=0.5, s=30, color='black')
+    
+    ax3.set_ylabel('Number of Turn Bouts per Fly')
+    ax3.set_title(f'{group_name}: Turn Bout Count per Fly')
+    
+    plt.tight_layout()
+    plt.savefig(save_path + group_name + '_bout_analysis.jpeg', bbox_inches='tight', dpi=300)
+    plt.show() 
+
+# Usage example:
+bout_analysis = analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn')
+
+# Save statistics
+stats_df = save_bout_statistics(bout_analysis, group1_label, plot_path)
+print(stats_df)
+
+# Create plots
+plot_bout_analysis(bout_analysis, group1_label, plot_path)
+
+# Print summary
+print(f"\nBaseline: {bout_analysis['baseline']['total_bouts']} total bouts, mean duration: {bout_analysis['baseline']['mean_duration']:.2f} frames")
+print(f"Stimulation: {bout_analysis['stimulation']['total_bouts']} total bouts, mean duration: {bout_analysis['stimulation']['mean_duration']:.2f} frames")
+
         #%% 
 """        
     for loom in range(len(df_try)):    
