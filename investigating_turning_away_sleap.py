@@ -75,10 +75,10 @@ def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_
     
     return bouts
 
-#new to verify if works
+
 def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
     """
-    Extract orientation before and after turn bouts from all flies pooled together.
+    Extract orientation before and after Turn bouts from all flies pooled together.
     """
     all_heading_before = []
     all_heading_after = []
@@ -198,7 +198,7 @@ def save_bout_statistics(bout_data, group_name, save_path):
     }
     
     df_stats = pd.DataFrame(stats_dict)
-    df_stats.to_csv(save_path + group_name + '_bout_statistics.csv', index=False)
+    df_stats.to_csv(save_path + group_name + '_bout_statistics_Turn.csv', index=False)
     print(f"Statistics saved to: {save_path + group_name}_bout_statistics.csv")
     
     return df_stats
@@ -225,7 +225,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading before')
-    plt.savefig(save_path + group_name + '_polar_before.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(save_path + group_name + '_polar_before_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Plot heading after
@@ -239,7 +239,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading after')
-    plt.savefig(save_path + group_name + '_polar_after.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(save_path + group_name + '_polar_after_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Normalize angles to ±180°
@@ -313,13 +313,13 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ]
     ax.legend(handles=legend_handles, loc='center left', bbox_to_anchor=(0.6, 0.8))
     
-    ax.set_title(group_name + ': magnitude of turn')
+    ax.set_title(group_name + ': magnitude of Turn')
     ax.set_ylabel('degrees')
     ax.set_xlabel("")
     ax.set_xticklabels([])
     sns.despine()
     
-    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline.jpeg',
+    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_Turn.jpeg',
                 bbox_inches='tight', dpi=1800)
     plt.show()
     
@@ -341,7 +341,7 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading before')
-    plt.savefig(save_path + group_name + '_polar_before_fake.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(save_path + group_name + '_polar_before_fake_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Plot heading after
@@ -355,7 +355,7 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading after')
-    plt.savefig(save_path + group_name + '_polar_after_fake.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(save_path + group_name + '_polar_after_fake_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Normalize angles to ±180°
@@ -429,13 +429,13 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ]
     ax.legend(handles=legend_handles, loc='center left', bbox_to_anchor=(0.6, 0.8))
     
-    ax.set_title(group_name + ': magnitude of turn')
+    ax.set_title(group_name + ': magnitude of Turn')
     ax.set_ylabel('degrees')
     ax.set_xlabel("")
     ax.set_xticklabels([])
     sns.despine()
     
-    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_fake.jpeg',
+    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_fake_Turn.jpeg',
                 bbox_inches='tight', dpi=1800)
     plt.show()  
 #%%
@@ -455,10 +455,13 @@ plot_path_escape_plots = exp_path + '/plots/escape_plots'
 plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
-
 experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-
 group1_label = 'VLF-39347'
+
+#arena in mm
+arena_raggio = 15 #in mm
+arena_center_x = 15 
+arena_center_y = 15
 
 #TIME SCALES
 frame_rate = 60
@@ -583,7 +586,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             
         elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
             df_try.loc[loom_offset[i], 'backwards'] = 1
- #%%            
+ #%%  commenting just because I don't need right now but is correct!          
 #plot_polar(exp_path, group1_label, all_flies_data_with_looms)
 #plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
  #%% 
@@ -599,13 +602,14 @@ def plot_bout_analysis(bout_data, group_name, save_path):
     baseline_dur = bout_data['baseline']['durations']
     stim_dur = bout_data['stimulation']['durations']
     
-    bins=1000
+    bins= 200#1000
     
-    ax1.set_xlim(0, 400)
+    
+    ax1.set_xlim(0, 100)
     ax1.hist(baseline_dur, bins=bins, alpha=0.5, label='Baseline', color='blue', )
-    ax1.hist(stim_dur, bins=bins, alpha=0.5, label='Stimulation', color='orange')
+    #ax1.hist(stim_dur, bins=bins, alpha=0.5, label='Stimulation', color='orange')
     #ax1.set_xscale('log') #otherwise bins have different size!
-    ax1.set_yscale('log')
+    #ax1.set_yscale('log')
     ax1.set_xlabel('Bout Duration (frames, log scale)')
     ax1.set_ylabel('Count')
     ax1.set_title(f'{group_name}: Turn Bout Duration Distribution')
@@ -650,24 +654,367 @@ def plot_bout_analysis(bout_data, group_name, save_path):
     ax3.set_title(f'{group_name}: Turn Bout Count per Fly')
     
     plt.tight_layout()
-    plt.savefig(save_path + group_name + '_bout_analysis.jpeg', bbox_inches='tight', dpi=300)
+    plt.savefig(save_path + group_name + '_bout_analysis_Turn.jpeg', bbox_inches='tight', dpi=300)
     plt.show() 
 
-# Usage example:
+# Usage example: commenting just because I don't need right now but is correct!
 bout_analysis = analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn')
 
 # Save statistics
-stats_df = save_bout_statistics(bout_analysis, group1_label, plot_path)
-print(stats_df)
+#stats_df = save_bout_statistics(bout_analysis, group1_label, plot_path)
+#print(stats_df)
 
 # Create plots
-plot_bout_analysis(bout_analysis, group1_label, plot_path)
+#plot_bout_analysis(bout_analysis, group1_label, plot_path)
 
 # Print summary
-print(f"\nBaseline: {bout_analysis['baseline']['total_bouts']} total bouts, mean duration: {bout_analysis['baseline']['mean_duration']:.2f} frames")
-print(f"Stimulation: {bout_analysis['stimulation']['total_bouts']} total bouts, mean duration: {bout_analysis['stimulation']['mean_duration']:.2f} frames")
+#print(f"\nBaseline: {bout_analysis['baseline']['total_bouts']} total bouts, mean duration: {bout_analysis['baseline']['mean_duration']:.2f} frames")
+#print(f"Stimulation: {bout_analysis['stimulation']['total_bouts']} total bouts, mean duration: {bout_analysis['stimulation']['mean_duration']:.2f} frames")
 
         #%% 
+def plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, arena_raggio, arena_center_x, arena_center_y, group_name, save_path, behavior_label='Turn'):
+    """
+    Plot the spatial distribution of turn bouts on the arena for baseline and stimulation periods.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset)
+    baseline_frames : int
+        Number of frames in baseline period
+    arena_raggio : float
+        Arena radius in mm
+    arena_center_x : float
+        Arena center X coordinate in mm
+    arena_center_y : float
+        Arena center Y coordinate in mm
+    group_name : str
+        Name of the group for plot title
+    save_path : str
+        Path to save the plots
+    behavior_label : str
+        The behavior to analyze (default 'Turn')
+    """
+    
+    # Collect turn bout positions
+    baseline_x = []
+    baseline_y = []
+    stimulation_x = []
+    stimulation_y = []
+    
+    for df_try, _ in all_flies_data_with_looms:
+        # Baseline period
+        df_baseline = df_try.loc[df_try.index < baseline_frames].copy()
+        baseline_bouts = identify_behavior_bouts(df_baseline, behavior_label=behavior_label)
+        
+        for bout in baseline_bouts:
+            # Get position at the start of the bout
+            bout_start = bout['start']
+            if bout_start in df_try.index:
+                baseline_x.append(df_try.loc[bout_start, 'Position_X'])
+                baseline_y.append(df_try.loc[bout_start, 'Position_Y'])
+        
+        # Stimulation period
+        df_stimulation = df_try.loc[df_try.index >= baseline_frames].copy()
+        stimulation_bouts = identify_behavior_bouts(df_stimulation, behavior_label=behavior_label)
+        
+        for bout in stimulation_bouts:
+            bout_start = bout['start']
+            if bout_start in df_try.index:
+                stimulation_x.append(df_try.loc[bout_start, 'Position_X'])
+                stimulation_y.append(df_try.loc[bout_start, 'Position_Y'])
+    
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    
+    # Draw arena circle for both plots
+    for ax, title, x_data, y_data, color in zip(
+        axes, 
+        ['Baseline', 'Stimulation'],
+        [baseline_x, stimulation_x],
+        [baseline_y, stimulation_y],
+        ['blue', 'orange']
+    ):
+        # Draw arena boundary
+        circle = plt.Circle((arena_center_x, arena_center_y), arena_raggio, 
+                           color='black', fill=False, linewidth=2)
+        ax.add_patch(circle)
+        
+        # Plot turn positions
+        ax.scatter(x_data, y_data, c=color, alpha=0.5, s=20, edgecolors='black', linewidth=0.5)
+        
+        # Set equal aspect ratio and limits
+        ax.set_aspect('equal')
+        ax.set_xlim(arena_center_x - arena_raggio - 2, arena_center_x + arena_raggio + 2)
+        ax.set_ylim(arena_center_y - arena_raggio - 2, arena_center_y + arena_raggio + 2)
+        
+        # Labels and title
+        ax.set_xlabel('X Position (mm)')
+        ax.set_ylabel('Y Position (mm)')
+        ax.set_title(f'{group_name} - {title}\nTurn Bouts (n={len(x_data)})')
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path + group_name + '_turn_spatial_distribution_Turn.jpeg', bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print summary
+    print(f"Baseline turn bouts: {len(baseline_x)}")
+    print(f"Stimulation turn bouts: {len(stimulation_x)}")
+
+
+# Usage:
+#plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, arena_raggio, arena_center_x, arena_center_y,  group1_label, plot_path, behavior_label='Turn')
+   #%% 
+def plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group_name, save_path, behavior_label='Turn'): #real loom 
+    """
+    Plot the spatial distribution of turn bouts during loom windows with orientation arrows.
+    Shows orientation before (red) and after (green) each turn bout.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset)
+    group_name : str
+        Name of the group for plot title
+    save_path : str
+        Path to save the plots
+    behavior_label : str
+        The behavior to analyze (default 'Turn')
+    """
+    
+    # Collect turn bout data during loom windows
+    positions_x = []
+    positions_y = []
+    orientations_before = []
+    orientations_after = []
+    
+    for df_try, loom_onset in all_flies_data_with_looms:
+        for i in range(len(loom_onset)):
+            # Get the window from loom onset to 120 frames after
+            window_start = loom_onset[i]
+            window_end = loom_onset[i] + 120
+            
+            # Create a subset dataframe for this window
+            df_window = df_try.loc[window_start:window_end].copy()
+            
+            # Identify turn bouts in this window
+            turn_bouts = identify_behavior_bouts(df_window, behavior_label=behavior_label)
+            
+            # For each turn bout, get position and orientation
+            for bout in turn_bouts:
+                bout_start = bout['start']
+                bout_end = bout['end']
+                
+                # Get position at the start of the bout
+                if bout_start in df_try.index:
+                    positions_x.append(df_try.loc[bout_start, 'Position_X'])
+                    positions_y.append(df_try.loc[bout_start, 'Position_Y'])
+                    
+                    # Get orientation before the bout (1 frame before)
+                    if bout_start - 1 >= 0 and bout_start - 1 in df_try.index:
+                        orientations_before.append(df_try.loc[bout_start - 1, 'orientation_smooth'])
+                    else:
+                        # If we can't get 1 frame before, use the start frame
+                        orientations_before.append(df_try.loc[bout_start, 'orientation_smooth'])
+                    
+                    # Get orientation after the bout (1 frame after)
+                    if bout_end + 1 < len(df_try) and bout_end + 1 in df_try.index:
+                        orientations_after.append(df_try.loc[bout_end + 1, 'orientation_smooth'])
+                    else:
+                        # If we can't get 1 frame after, use the end frame
+                        orientations_after.append(df_try.loc[bout_end, 'orientation_smooth'])
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 12))
+    
+    # Draw arena boundary
+    circle = plt.Circle((arena_center_x, arena_center_y), arena_raggio, 
+                       color='black', fill=False, linewidth=2)
+    ax.add_patch(circle)
+    
+    # Arrow length (adjust as needed)
+    arrow_length = 1.5  # in mm
+    
+    # Plot each turn bout with orientation arrows
+    for x, y, ori_before, ori_after in zip(positions_x, positions_y, orientations_before, orientations_after):
+        # Convert orientation from degrees to radians
+        angle_before_rad = np.deg2rad(ori_before - 90) # Subtract 90 to convert back to math convention where 0° = East
+        angle_after_rad = np.deg2rad(ori_after - 90) # Subtract 90 to convert back to math convention where 0° = East
+        
+                # Calculate arrow endpoints
+        #arrow before
+        dx_before = arrow_length * np.cos(angle_before_rad)
+        dy_before = -arrow_length * np.sin(angle_before_rad)  # Negative because of how you calculated dy
+        
+        ax.arrow(x, y, dx_before, dy_before,  
+                head_width=0.5, head_length=0.3, fc='red', ec='red', 
+                alpha=0.7, linewidth=1.5, zorder=3)
+        #arrow after
+        dx_after = arrow_length * np.cos(angle_after_rad)
+        dy_after = -arrow_length * np.sin(angle_after_rad)  # Negative because of how you calculated dy
+        
+        ax.arrow(x, y, dx_after, dy_after, 
+                head_width=0.5, head_length=0.3, fc='green', ec='green', 
+                alpha=0.7, linewidth=1.5, zorder=4)
+        
+        # Mark the position with a small dot
+        ax.scatter(x, y, c='black', s=10, zorder=5)
+    
+    # Set equal aspect ratio and limits
+    ax.set_aspect('equal')
+    ax.set_xlim(arena_center_x - arena_raggio - 2, arena_center_x + arena_raggio + 2)
+    ax.set_ylim(arena_center_y - arena_raggio - 2, arena_center_y + arena_raggio + 2)
+    
+    # Labels and title
+    ax.set_xlabel('X Position (mm)', fontsize=12)
+    ax.set_ylabel('Y Position (mm)', fontsize=12)
+    ax.set_title(f'{group_name} - Turn Bouts During Loom Windows\n(n={len(positions_x)} turns)', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    
+    # Create custom legend
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='black', markersize=8, label='Turn position'),
+        Line2D([0], [0], color='red', linewidth=2, label='Orientation before turn'),
+        Line2D([0], [0], color='green', linewidth=2, label='Orientation after turn')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(save_path + group_name + '_Turn_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print summary
+    print(f"Total turn bouts during loom windows: {len(positions_x)}")
+
+
+def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group_name, save_path, behavior_label='Turn'): #fake loom 
+    """
+    Plot the spatial distribution of turn bouts during loom windows with orientation arrows.
+    Shows orientation before (red) and after (green) each turn bout.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset)
+    group_name : str
+        Name of the group for plot title
+    save_path : str
+        Path to save the plots
+    behavior_label : str
+        The behavior to analyze (default 'Turn')
+    """
+    
+    # Collect turn bout data during loom windows
+    positions_x = []
+    positions_y = []
+    orientations_before = []
+    orientations_after = []
+    
+    for df_try, loom_onset in all_flies_data_with_fake_looms:
+        for i in range(len(loom_onset)):
+            # Get the window from loom onset to 120 frames after
+            window_start = loom_onset[i] 
+            window_end = loom_onset[i] + 120
+            
+            # Create a subset dataframe for this window
+            df_window = df_try.loc[window_start:window_end].copy()
+            
+            # Identify turn bouts in this window
+            turn_bouts = identify_behavior_bouts(df_window, behavior_label=behavior_label)
+            
+            # For each turn bout, get position and orientation
+            for bout in turn_bouts:
+                bout_start = bout['start']
+                bout_end = bout['end']
+                
+                # Get position at the start of the bout
+                if bout_start in df_try.index:
+                    positions_x.append(df_try.loc[bout_start, 'Position_X'])
+                    positions_y.append(df_try.loc[bout_start, 'Position_Y'])
+                    
+                    # Get orientation before the bout (1 frame before)
+                    if bout_start - 1 >= 0 and bout_start - 1 in df_try.index:
+                        orientations_before.append(df_try.loc[bout_start - 1, 'orientation_smooth'])
+                    else:
+                        # If we can't get 1 frame before, use the start frame
+                        orientations_before.append(df_try.loc[bout_start, 'orientation_smooth'])
+                    
+                    # Get orientation after the bout (1 frame after)
+                    if bout_end + 1 < len(df_try) and bout_end + 1 in df_try.index:
+                        orientations_after.append(df_try.loc[bout_end + 1, 'orientation_smooth'])
+                    else:
+                        # If we can't get 1 frame after, use the end frame
+                        orientations_after.append(df_try.loc[bout_end, 'orientation_smooth'])
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 12))
+    
+    # Draw arena boundary
+    circle = plt.Circle((arena_center_x, arena_center_y), arena_raggio, 
+                       color='black', fill=False, linewidth=2)
+    ax.add_patch(circle)
+    
+    # Arrow length (adjust as needed)
+    arrow_length = 1.5  # in mm
+    
+    # Plot each turn bout with orientation arrows
+    for x, y, ori_before, ori_after in zip(positions_x, positions_y, orientations_before, orientations_after):
+        # Convert orientation from degrees to radians
+        angle_before_rad = np.deg2rad(ori_before - 90) # Subtract 90 to convert back to math convention where 0° = East
+        angle_after_rad = np.deg2rad(ori_after - 90) # Subtract 90 to convert back to math convention where 0° = East
+        
+                # Calculate arrow endpoints
+        #arrow before
+        dx_before = arrow_length * np.cos(angle_before_rad)
+        dy_before = -arrow_length * np.sin(angle_before_rad)  # Negative because of how you calculated dy
+        
+        ax.arrow(x, y, dx_before, dy_before,  
+                head_width=0.5, head_length=0.3, fc='red', ec='red', 
+                alpha=0.7, linewidth=1.5, zorder=3)
+        #arrow after
+        dx_after = arrow_length * np.cos(angle_after_rad)
+        dy_after = -arrow_length * np.sin(angle_after_rad)  # Negative because of how you calculated dy
+        
+        ax.arrow(x, y, dx_after, dy_after, 
+                head_width=0.5, head_length=0.3, fc='green', ec='green', 
+                alpha=0.7, linewidth=1.5, zorder=4)
+        
+        # Mark the position with a small dot
+        ax.scatter(x, y, c='black', s=10, zorder=5)
+    
+    # Set equal aspect ratio and limits
+    ax.set_aspect('equal')
+    ax.set_xlim(arena_center_x - arena_raggio - 2, arena_center_x + arena_raggio + 2)
+    ax.set_ylim(arena_center_y - arena_raggio - 2, arena_center_y + arena_raggio + 2)
+    
+    # Labels and title
+    ax.set_xlabel('X Position (mm)', fontsize=12)
+    ax.set_ylabel('Y Position (mm)', fontsize=12)
+    ax.set_title(f'{group_name} - Turn Bouts During fake Loom Windows\n(n={len(positions_x)} turns)', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    
+    # Create custom legend
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='black', markersize=8, label='Turn position'),
+        Line2D([0], [0], color='red', linewidth=2, label='Orientation before turn'),
+        Line2D([0], [0], color='green', linewidth=2, label='Orientation after turn')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(save_path + group_name + '_Floor_Turn_fake_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print summary
+    print(f"Total turn bouts during fake loom windows: {len(positions_x)}")
+
+# Usage:
+#plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Turn')  #real loom #'Floor_Turn'
+plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #fake loom but remember to change title and name of fig in the function   
+#%% 
 """        
     for loom in range(len(df_try)):    
         if loom in loom_onset:
