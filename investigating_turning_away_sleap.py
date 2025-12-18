@@ -104,11 +104,11 @@ def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
                 
                 # Get orientation before the bout starts (e.g., 1 frames before)
                 if bout_start >= 1:
-                    heading_before = df_try.loc[bout_start - 3, 'orientation_smooth']
+                    heading_before = df_try.loc[bout_start - 3, 'Orientation'] #'orientation_smooth' - DECIDED THAT IS BETTER NO SMOOTH (a lot of nan and nature of 0-360 problem)
                     
                     # Get orientation after the bout ends (e.g., 1 frames after)
                     if bout_end + 1 < len(df_try):
-                        heading_after = df_try.loc[bout_end + 3, 'orientation_smooth']
+                        heading_after = df_try.loc[bout_end + 3, 'Orientation']
                         
                         all_heading_before.append(heading_before)
                         all_heading_after.append(heading_after)
@@ -455,8 +455,8 @@ plot_path_escape_plots = exp_path + '/plots/escape_plots'
 plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
-experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-group1_label = 'VLF-39347'
+experiment_name = 'VLF-39347_GFP' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_label = 'VLF-39347_GFP'
 
 #arena in mm
 arena_raggio = 15 #in mm
@@ -552,28 +552,27 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     heading_y_before = []
     heading_x_after = []
     heading_y_after = []
-    
-    #df_try.loc[(df_try['walk'] == 1), 'walk_speed'] = df_try['velocity']    
+      
     df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
     df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed     
-        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run! Do the same for orientation important for heading for escape turn!
+        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run! 
     # Step 1: Create a cleaned velocity column (remove jumps)
     df_try['walk_velocity_clean'] = df_try['walk_speed'].copy()
-    df_try['orientation_clean'] = df_try['Orientation'].copy()    
+    #df_try['orientation_clean'] = df_try['Orientation'].copy()    
     # Mark frames with jumps as NaN
     df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan
-    df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'orientation_clean'] = np.nan    
+    #df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'orientation_clean'] = np.nan    
     # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
     for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index:
         if idx >= 6:
             df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
-            df_try.loc[idx-6:idx-1, 'orientation_clean'] = np.nan
+            #df_try.loc[idx-6:idx-1, 'orientation_clean'] = np.nan
         if idx <= len(df_try) - 7:
             df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
-            df_try.loc[idx+1:idx+6, 'orientation_clean'] = np.nan    
+            #df_try.loc[idx+1:idx+6, 'orientation_clean'] = np.nan    
     # Step 2: Apply running average (7 frames) - NaNs will be skipped
     df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
-    df_try['orientation_smooth'] = df_try['orientation_clean'].rolling(window=7, center=True, min_periods=1).mean()       
+    #df_try['orientation_smooth'] = df_try['orientation_clean'].rolling(window=7, center=True, min_periods=1).mean()       
  #%%
     '''checking jumps, freeze, backwards'''
     for i in range(len(loom_onset)):
@@ -813,17 +812,17 @@ def plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group_nam
                     
                     # Get orientation before the bout (1 frame before)
                     if bout_start - 1 >= 0 and bout_start - 1 in df_try.index:
-                        orientations_before.append(df_try.loc[bout_start - 1, 'orientation_smooth'])
+                        orientations_before.append(df_try.loc[bout_start - 1, 'Orientation'])
                     else:
                         # If we can't get 1 frame before, use the start frame
-                        orientations_before.append(df_try.loc[bout_start, 'orientation_smooth'])
+                        orientations_before.append(df_try.loc[bout_start, 'Orientation'])
                     
                     # Get orientation after the bout (1 frame after)
                     if bout_end + 1 < len(df_try) and bout_end + 1 in df_try.index:
-                        orientations_after.append(df_try.loc[bout_end + 1, 'orientation_smooth'])
+                        orientations_after.append(df_try.loc[bout_end + 1, 'Orientation'])
                     else:
                         # If we can't get 1 frame after, use the end frame
-                        orientations_after.append(df_try.loc[bout_end, 'orientation_smooth'])
+                        orientations_after.append(df_try.loc[bout_end, 'Orientation'])
     
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -936,17 +935,17 @@ def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms,
                     
                     # Get orientation before the bout (1 frame before)
                     if bout_start - 1 >= 0 and bout_start - 1 in df_try.index:
-                        orientations_before.append(df_try.loc[bout_start - 1, 'orientation_smooth'])
+                        orientations_before.append(df_try.loc[bout_start - 1, 'Orientation'])
                     else:
                         # If we can't get 1 frame before, use the start frame
-                        orientations_before.append(df_try.loc[bout_start, 'orientation_smooth'])
+                        orientations_before.append(df_try.loc[bout_start, 'Orientation'])
                     
                     # Get orientation after the bout (1 frame after)
                     if bout_end + 1 < len(df_try) and bout_end + 1 in df_try.index:
-                        orientations_after.append(df_try.loc[bout_end + 1, 'orientation_smooth'])
+                        orientations_after.append(df_try.loc[bout_end + 1, 'Orientation'])
                     else:
                         # If we can't get 1 frame after, use the end frame
-                        orientations_after.append(df_try.loc[bout_end, 'orientation_smooth'])
+                        orientations_after.append(df_try.loc[bout_end, 'Orientation'])
     
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -1012,7 +1011,7 @@ def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms,
     print(f"Total turn bouts during fake loom windows: {len(positions_x)}")
 
 # Usage:
-#plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Turn')  #real loom #'Floor_Turn'
+plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Turn')  #real loom #'Floor_Turn'
 plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #fake loom but remember to change title and name of fig in the function   
 #%% 
 """        
