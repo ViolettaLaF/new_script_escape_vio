@@ -95,7 +95,7 @@ def data_polar_all_flies(path, group_name, all_flies_data_with_looms):
             df_window = df_try.loc[window_start:window_end].copy()
             
             # Identify turn bouts in this window
-            turn_bouts = identify_behavior_bouts(df_window, behavior_label='Turn')
+            turn_bouts = identify_behavior_bouts(df_window, behavior_label='Floor_Turn')
             
             # For each turn bout, get orientation before and after
             for bout in turn_bouts:
@@ -225,7 +225,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading before')
-    plt.savefig(save_path + group_name + '_polar_before_Turn.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_polar_before_Floor_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Plot heading after
@@ -239,7 +239,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading after')
-    plt.savefig(save_path + group_name + '_polar_after_Turn.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_polar_after_Floor_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Normalize angles to ±180°
@@ -319,7 +319,7 @@ def plot_polar(path, group_name, all_flies_data_with_looms):
     ax.set_xticklabels([])
     sns.despine()
     
-    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_Turn.jpeg',
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_scatter_violin_hollow_outline_Floor_Turn.jpeg',
                 bbox_inches='tight', dpi=1800)
     plt.show()
     
@@ -341,7 +341,7 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading before')
-    plt.savefig(save_path + group_name + '_polar_before_fake_Turn.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_polar_before_fake_Floor_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Plot heading after
@@ -355,7 +355,7 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
     ax.set_title(group_name + ': heading after')
-    plt.savefig(save_path + group_name + '_polar_after_fake_Turn.jpeg', bbox_inches='tight', dpi=1800)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_polar_after_fake_Turn.jpeg', bbox_inches='tight', dpi=1800)
     plt.show()    
 
     # Normalize angles to ±180°
@@ -435,7 +435,7 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
     ax.set_xticklabels([])
     sns.despine()
     
-    plt.savefig(save_path + group_name + '_scatter_violin_hollow_outline_fake_Turn.jpeg',
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_scatter_violin_hollow_outline_fake_Turn.jpeg',
                 bbox_inches='tight', dpi=1800)
     plt.show()  
 #%%
@@ -455,8 +455,8 @@ plot_path_escape_plots = exp_path + '/plots/escape_plots'
 plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
-experiment_name = 'VLF-39347_GFP' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-group1_label = 'VLF-39347_GFP'
+experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_label = 'VLF-39347'
 
 #arena in mm
 arena_raggio = 15 #in mm
@@ -467,7 +467,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 300
+baseline  = 30 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -586,7 +586,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
             df_try.loc[loom_offset[i], 'backwards'] = 1
  #%%  commenting just because I don't need right now but is correct!          
-#plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+plot_polar(exp_path, group1_label, all_flies_data_with_looms)
 #plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
  #%% 
 
@@ -601,12 +601,12 @@ def plot_bout_analysis(bout_data, group_name, save_path):
     baseline_dur = bout_data['baseline']['durations']
     stim_dur = bout_data['stimulation']['durations']
     
-    bins= 200#1000
+    bins= 1000
     
     
     ax1.set_xlim(0, 100)
     ax1.hist(baseline_dur, bins=bins, alpha=0.5, label='Baseline', color='blue', )
-    #ax1.hist(stim_dur, bins=bins, alpha=0.5, label='Stimulation', color='orange')
+    ax1.hist(stim_dur, bins=bins, alpha=0.5, label='Stimulation', color='orange')
     #ax1.set_xscale('log') #otherwise bins have different size!
     #ax1.set_yscale('log')
     ax1.set_xlabel('Bout Duration (frames, log scale)')
@@ -653,11 +653,11 @@ def plot_bout_analysis(bout_data, group_name, save_path):
     ax3.set_title(f'{group_name}: Turn Bout Count per Fly')
     
     plt.tight_layout()
-    plt.savefig(save_path + group_name + '_bout_analysis_Turn.jpeg', bbox_inches='tight', dpi=300)
+    plt.savefig(plot_path+"/"+str(experiment_name) + '_bout_analysis_Turn.jpeg', bbox_inches='tight', dpi=300)
     plt.show() 
 
 # Usage example: commenting just because I don't need right now but is correct!
-bout_analysis = analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn')
+#bout_analysis = analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn')
 
 # Save statistics
 #stats_df = save_bout_statistics(bout_analysis, group1_label, plot_path)
@@ -754,7 +754,7 @@ def plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, a
         ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(save_path + group_name + '_turn_spatial_distribution_Turn.jpeg', bbox_inches='tight', dpi=300)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_turn_spatial_distribution_Turn.jpeg', bbox_inches='tight', dpi=300)
     plt.show()
     
     # Print summary
@@ -881,7 +881,7 @@ def plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group_nam
     ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
     
     plt.tight_layout()
-    plt.savefig(save_path + group_name + '_Turn_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ 'Floor_Turn_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
     plt.show()
     
     # Print summary
@@ -1004,15 +1004,15 @@ def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms,
     ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
     
     plt.tight_layout()
-    plt.savefig(save_path + group_name + '_Floor_Turn_fake_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
+    plt.savefig(plot_path+"/"+str(experiment_name)+ '_Turn_fake_loom_orientation.jpeg', bbox_inches='tight', dpi=300)
     plt.show()
     
     # Print summary
     print(f"Total turn bouts during fake loom windows: {len(positions_x)}")
 
 # Usage:
-plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Turn')  #real loom #'Floor_Turn'
-plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #fake loom but remember to change title and name of fig in the function   
+plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #real loom #'Floor_Turn'
+#plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Turn')  #fake loom but remember to change title and name of fig in the function   
 #%% 
 """        
     for loom in range(len(df_try)):    
