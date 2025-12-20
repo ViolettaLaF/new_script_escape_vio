@@ -19,7 +19,8 @@ from scipy.stats import ttest_ind
 from matplotlib.collections import PolyCollection, PathCollection
 from matplotlib.lines import Line2D
 import pickle
-
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 #%%
 def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_Behavior'):
     """
@@ -928,7 +929,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     capital_x = filename.replace('X','x')
     if not capital_x.startswith(experiment_name):
         continue
-    df_try = pd.read_csv(path+'/control_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
+    df_try = pd.read_csv(path+'/control_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation', 'View', 'Behavior'])
 
     # Add Charlie behavior data to df_try if available
     if df_behave_charlie is not None:
@@ -1007,13 +1008,629 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
             df_try.loc[loom_offset[i], 'backwards'] = 1
  #%%  commenting just because I don't need right now but is correct!          
-plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+#plot_polar(exp_path, group1_label, all_flies_data_with_looms)
 #plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
- #%% 
+
+ #%% ETOGRAMME COLLAPSING LOOM TOGETHER (YOU CAN SELECT THE n OF LOOM THAT YOU WANT AND THE SIZE OF THE WINDOW)
+
+def create_ethogram_data_aligned(all_flies_data_with_looms, variable, loom_indices, 
+                                 frames_before=60, frames_after=60, 
+                                 filter_func=None):
+    """
+    Create ethogram data matrix with all looms aligned to common onset/offset.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset)
+    variable : str
+        Column name to plot ('Charlie_Behavior', 'Speed', 'Orientation', etc.)
+    loom_indices : list
+        Which looms to include (e.g., [0, 1, 2] for first 3 looms)
+    frames_before : int
+        Number of frames before loom onset
+    frames_after : int
+        Number of frames after loom onset
+    filter_func : callable, optional
+        Function that takes (df_try, loom_onset, loom_idx, frames_before, frames_after)
+        and returns True if this loom trial should be included
+        
+    Returns:
+    --------
+    pd.DataFrame : Matrix with loom trials as rows and time as columns
+    list : Metadata for each trial (fly_idx, loom_idx)
+    """
+    all_loom_trials = []
+    trial_metadata = []
+    
+    for fly_idx, (df_try, loom_onset) in enumerate(all_flies_data_with_looms):
+        for loom_idx in loom_indices:
+            if loom_idx < len(loom_onset):
+                loom_start = loom_onset[loom_idx]
+                window_start = loom_start - frames_before
+                window_end = loom_start + frames_after
+                
+                # Apply filter if provided
+                if filter_func is not None:
+                    if not filter_func(df_try, loom_start, window_start, window_end):
+                        continue
+                
+                # Extract data for this window
+                if window_start >= 0 and window_end < len(df_try):
+                    trace = df_try.loc[window_start:window_end, variable].values
+                    all_loom_trials.append(trace)
+                    trial_metadata.append({'fly_idx': fly_idx, 'loom_idx': loom_idx})
+                else:
+                    # Pad with NaN if window extends beyond data
+                    trace = [np.nan] * (frames_before + frames_after + 1)
+                    all_loom_trials.append(trace)
+                    trial_metadata.append({'fly_idx': fly_idx, 'loom_idx': loom_idx})
+    
+    # Create DataFrame
+    n_frames = frames_before + frames_after + 1
+    df_ethogram = pd.DataFrame(all_loom_trials, 
+                               columns=[f'frame_{i}' for i in range(n_frames)])
+    df_ethogram.index.name = 'trial'
+    
+    return df_ethogram, trial_metadata
 
 
+def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_name,
+                                 frames_before=60, frames_after=60, frame_rate=60, 
+                                 loom_duration_frames=30,
+                                 cbar=True, figsize=None, save_path=None):
+    """
+    Plot ethogram raster with all looms aligned to common onset/offset.
+    
+    Parameters:
+    -----------
+    ethogram_data : pd.DataFrame
+        Matrix with trials as rows and time as columns
+    trial_metadata : list
+        Metadata for each trial
+    variable : str
+        Variable name being plotted
+    group_name : str
+        Name for the plot title
+    frames_before : int
+        Number of frames before loom onset
+    frames_after : int
+        Number of frames after loom onset
+    frame_rate : int
+        Frame rate for time axis labels
+    loom_duration_frames : int
+        Duration of loom stimulus in frames
+    cbar : bool
+        Whether to show colorbar
+    figsize : tuple
+        Figure size (if None, auto-calculated based on data)
+    save_path : str
+        Path to save the figure (optional)
+    """
+    # Auto-calculate figure size if not provided
+    if figsize is None:
+        n_trials = len(ethogram_data)
+        n_frames = len(ethogram_data.columns)
+        # Width based on time, height based on number of trials
+        width = max(10, n_frames / 20)
+        height = max(6, n_trials / 20)
+        figsize = (width, height)
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Define color schemes for different variables
+    behaviour_colours = {
+        'Resistant_Freeze': '#2297C3',
+        'Freeze': '#7AD9F1',
+        'Stationary': '#F2D657',
+        'Walk': 'grey',
+        'Turn': '#22C350',
+        'Backwards_Walk': '#FB6609',
+        'Jump': '#8756B2',
+        'Floor_Turn': '#206233',
+    }
+    
+    view_colours = {
+        'Left': '#F7E97E', 
+        'Top': '#324450',
+        'Right': '#A67354',
+        'Vertical': '#CC4646'
+    }
+    
+    # Set up colormap and parameters based on variable type
+    vmax = None
+    cmap = plt.get_cmap("viridis")
+    legend_handles = None
+    mask = None
+    
+    if variable == 'Charlie_Behavior' or variable == 'Behavior':
+        # Get all unique behaviors in the data
+        unique_behaviors = ethogram_data.stack().unique()
+        unique_behaviors = [b for b in unique_behaviors if pd.notna(b)]
+        
+        # Check for behaviors not in our color dictionary
+        missing_behaviors = set(unique_behaviors) - set(behaviour_colours.keys())
+        if missing_behaviors:
+            print(f"Warning: Found behaviors not in color dictionary: {missing_behaviors}")
+            print("Adding them with default colors...")
+            # Add missing behaviors with random colors
+            default_colors = plt.cm.tab20(np.linspace(0, 1, len(missing_behaviors)))
+            for i, beh in enumerate(missing_behaviors):
+                behaviour_colours[beh] = mcolors.rgb2hex(default_colors[i])
+        
+        # Convert behavior strings to numeric for plotting
+        behavior_to_num = {beh: i for i, beh in enumerate(behaviour_colours.keys())}
+        
+        # Create numeric matrix
+        numeric_data = ethogram_data.replace(behavior_to_num)
+        
+        cmap = mcolors.ListedColormap(list(behaviour_colours.values()))
+        vmax = len(behaviour_colours) - 1
+        legend_handles = [mpatches.Patch(color=color, label=beh) 
+                         for beh, color in behaviour_colours.items()]
+        
+        # Mask NaN values
+        mask = numeric_data.isna()
+        plot_data = numeric_data
+        
+    elif variable == 'View':
+        # Convert view strings to numeric
+        view_to_num = {view: i for i, view in enumerate(view_colours.keys())}
+        numeric_data = ethogram_data.replace(view_to_num)
+        
+        cmap = mcolors.ListedColormap(list(view_colours.values()))
+        vmax = len(view_colours) - 1
+        legend_handles = [mpatches.Patch(color=color, label=view) 
+                         for view, color in view_colours.items()]
+        
+        mask = numeric_data.isna()
+        plot_data = numeric_data
+        
+    elif variable == 'Speed':
+        vmax = 20  # mm/s
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+        
+    elif variable == 'Orientation':
+        vmax = 360
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+        
+    else:
+        # Generic continuous variable
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+    
+    # Set bad color (for NaN/masked values)
+    cmap.set_bad('white')
+    
+    # Create heatmap
+    sns.heatmap(plot_data, mask=mask, cmap=cmap, vmin=0, vmax=vmax, 
+                cbar=cbar, ax=ax, linewidths=0, alpha=1, rasterized=True)
+    
+    # Add legend for categorical variables
+    if legend_handles:
+        plt.legend(handles=legend_handles, bbox_to_anchor=(1.15, 1), 
+                  loc='upper left', title=variable, fontsize=10)
+    
+    # Add vertical lines at loom onset and offset (ONLY TWO LINES)
+    loom_onset_frame = frames_before
+    loom_offset_frame = frames_before + loom_duration_frames
+    
+    ax.axvline(x=loom_onset_frame, color='black', linewidth=3, linestyle='-', alpha=0.9, zorder=10)
+    ax.axvline(x=loom_offset_frame, color='black', linewidth=3, linestyle='-', alpha=0.9, zorder=10)
+    
+    # Add text labels
+    ax.text(loom_onset_frame, -1, 'Loom ON', ha='center', va='top', 
+           fontsize=12, fontweight='bold')
+    ax.text(loom_offset_frame, -1, 'Loom OFF', ha='center', va='top', 
+           fontsize=12, fontweight='bold')
+    
+    # Set up x-axis (time)
+    time_points = [-frames_before/frame_rate, 0, loom_duration_frames/frame_rate, frames_after/frame_rate]
+    frame_points = [0, loom_onset_frame, loom_offset_frame, frames_before + frames_after]
+    
+    ax.set_xticks(frame_points)
+    ax.set_xticklabels([f'{t:.1f}s' for t in time_points], fontsize=10)
+    ax.set_xlabel('Time relative to loom onset', fontsize=12)
+    ax.set_ylabel('Trial (Fly × Loom)', fontsize=12)
+    
+    # Show y-axis with trial numbers
+    ax.yaxis.set_visible(True)
+    n_trials = len(ethogram_data)
+    trial_ticks = np.arange(0, n_trials, max(1, n_trials//20))  # Show max 20 ticks
+    ax.set_yticks(trial_ticks + 0.5)
+    ax.set_yticklabels(trial_ticks, fontsize=8)
+    
+    # Title with trial count
+    n_flies = len(set(m['fly_idx'] for m in trial_metadata))
+    title = f'{group_name} - {variable}\n({n_trials} trials from {n_flies} flies)'
+    ax.set_title(title, fontsize=14, pad=20)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    
+    plt.show()
 
 
+# Example filter functions
+def filter_turns_in_window(df_try, loom_start, window_start, window_end):
+    """
+    Filter function: Include only trials where fly turned during the window.
+    """
+    window_data = df_try.loc[window_start:window_end]
+    has_turn = (window_data['Charlie_Behavior'] == 'Turn').any()
+    return has_turn
+
+
+def filter_jumps_in_window(df_try, loom_start, window_start, window_end):
+    """
+    Filter function: Include only trials where fly jumped during the window.
+    """
+    window_data = df_try.loc[window_start:window_end]
+    has_jump = (window_data['Charlie_Behavior'] == 'Jump').any()
+    return has_jump
+
+
+def filter_speed_threshold(df_try, loom_start, window_start, window_end, min_speed=10):
+    """
+    Filter function: Include only trials where fly exceeded speed threshold.
+    """
+    window_data = df_try.loc[window_start:window_end]
+    exceeded_threshold = (window_data['Speed'] > min_speed).any()
+    return exceeded_threshold
+
+
+# Example usage:
+
+# Define parameters
+loom_indices = list(range(20))  # First 5 looms
+frames_before = 120  # 2 seconds before
+frames_after = 120   # 2 seconds after
+loom_duration_frames = 30  # 0.5 seconds
+
+# ALL TRIALS - no filter
+#ethogram_all, metadata_all = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=None  ) # No filter
+#plot_ethogram_raster_aligned(ethogram_all, metadata_all, 'Charlie_Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_all_trials.png')
+
+# ONLY TRIALS WITH TURNS
+ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
+plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'Charlie_Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_turns_only.png')
+#View
+ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='View', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
+plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'View', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_View_turns_only.png')
+
+#original behaviour 'Behavior'
+ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
+plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_original_behav_turns_only.png')
+
+"""
+# ONLY TRIALS WITH JUMPS
+ethogram_jumps, metadata_jumps = create_ethogram_data_aligned(
+    all_flies_data_with_looms, 
+    variable='Charlie_Behavior',
+    loom_indices=loom_indices,
+    frames_before=frames_before,
+    frames_after=frames_after,
+    filter_func=filter_jumps_in_window
+)
+
+plot_ethogram_raster_aligned(
+    ethogram_jumps, metadata_jumps, 'Charlie_Behavior', group1_label,
+    frames_before, frames_after, frame_rate, loom_duration_frames,
+    save_path=plot_path + '/ethogram_jumps_only.png'
+)
+
+# CUSTOM FILTER - High speed trials
+def filter_high_speed(df_try, loom_start, window_start, window_end):
+    return filter_speed_threshold(df_try, loom_start, window_start, window_end, min_speed=15)
+
+ethogram_speed, metadata_speed = create_ethogram_data_aligned(
+    all_flies_data_with_looms, 
+    variable='Speed',
+    loom_indices=loom_indices,
+    frames_before=frames_before,
+    frames_after=frames_after,
+    filter_func=filter_high_speed
+)
+
+plot_ethogram_raster_aligned(
+    ethogram_speed, metadata_speed, 'Speed', group1_label,
+    frames_before, frames_after, frame_rate, loom_duration_frames,
+    save_path=plot_path + '/ethogram_high_speed_trials.png'
+)
+
+"""
+ #%% ETOGRAMME WITH LOOM SIDE BY SIDE (YOU CAN SELECT THE n OF LOOM THAT YOU WANT AND THE SIZE OF THE WINDOW) - work well
+
+def create_ethogram_data(all_flies_data_with_looms, variable, loom_indices, 
+                         frames_before=60, frames_after=60, combine_looms=True):
+    """
+    Create ethogram data matrix for plotting.
+    
+    Parameters:
+    -----------
+    all_flies_data_with_looms : list of tuples
+        Each tuple contains (df_try, loom_onset)
+    variable : str
+        Column name to plot ('Charlie_Behavior', 'Speed', 'Orientation', etc.)
+    loom_indices : list
+        Which looms to include (e.g., [0, 1, 2] for first 3 looms)
+    frames_before : int
+        Number of frames before loom onset
+    frames_after : int
+        Number of frames after loom onset
+    combine_looms : bool
+        If True, combines all looms into one continuous trace per fly
+        
+    Returns:
+    --------
+    pd.DataFrame : Matrix with flies as rows and time as columns
+    """
+    all_fly_data = []
+    
+    for fly_idx, (df_try, loom_onset) in enumerate(all_flies_data_with_looms):
+        fly_traces = []
+        
+        for loom_idx in loom_indices:
+            if loom_idx < len(loom_onset):
+                loom_start = loom_onset[loom_idx]
+                window_start = loom_start - frames_before
+                window_end = loom_start + frames_after
+                
+                # Extract data for this window
+                if window_start >= 0 and window_end < len(df_try):
+                    trace = df_try.loc[window_start:window_end, variable].values
+                    fly_traces.extend(trace)
+                else:
+                    # Pad with NaN if window extends beyond data
+                    trace = [np.nan] * (frames_before + frames_after + 1)
+                    fly_traces.extend(trace)
+        
+        all_fly_data.append(fly_traces)
+    
+    # Create DataFrame
+    n_frames_per_loom = frames_before + frames_after + 1
+    total_frames = n_frames_per_loom * len(loom_indices)
+    
+    df_ethogram = pd.DataFrame(all_fly_data, 
+                               columns=[f'frame_{i}' for i in range(total_frames)])
+    df_ethogram.index.name = 'fly'
+    
+    return df_ethogram
+
+
+def plot_ethogram_raster(ethogram_data, variable, group_name, loom_indices,
+                         frames_before=60, frames_after=60, frame_rate=60, 
+                         loom_duration_frames=30,
+                         cbar=True, figsize=None, save_path=None):
+    """
+    Plot ethogram raster with flexible variable types.
+    
+    Parameters:
+    -----------
+    ethogram_data : pd.DataFrame
+        Matrix with flies as rows and time as columns
+    variable : str
+        Variable name being plotted
+    group_name : str
+        Name for the plot title
+    loom_indices : list
+        Which looms are included
+    frames_before : int
+        Number of frames before loom onset
+    frames_after : int
+        Number of frames after loom onset
+    frame_rate : int
+        Frame rate for time axis labels
+    loom_duration_frames : int
+        Duration of loom stimulus in frames
+    cbar : bool
+        Whether to show colorbar
+    figsize : tuple
+        Figure size (if None, auto-calculated based on data)
+    save_path : str
+        Path to save the figure (optional)
+    """
+    # Auto-calculate figure size if not provided
+    if figsize is None:
+        n_flies = len(ethogram_data)
+        n_frames = len(ethogram_data.columns)
+        # Width based on time, height based on number of flies
+        width = max(12, n_frames / 50)  # Adjust divisor to control width
+        height = max(8, n_flies / 10)   # Adjust divisor to control height
+        figsize = (width, height)
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Define color schemes for different variables
+    behaviour_colours = {
+        'Resistant_Freeze': '#2297C3',
+        'Freeze': '#7AD9F1',
+        'Stationary': '#F2D657',
+        'Walk': 'grey',
+        'Turn': '#22C350',
+        'Backwards_Walk': '#FB6609',
+        'Jump': '#8756B2',
+        'Floor_Turn': '#206233',
+    }
+    
+    view_colours = {
+        'Left': '#F7E97E', 
+        'Top': '#324450',
+        'Right': '#A67354',
+        'Vertical': '#CC4646'
+    }
+    
+    # Set up colormap and parameters based on variable type
+    vmax = None
+    cmap = plt.get_cmap("viridis")
+    legend_handles = None
+    mask = None
+    
+    if variable == 'Charlie_Behavior' or variable == 'Behavior':
+        # Get all unique behaviors in the data
+        unique_behaviors = ethogram_data.stack().unique()
+        unique_behaviors = [b for b in unique_behaviors if pd.notna(b)]
+        
+        # Check for behaviors not in our color dictionary
+        missing_behaviors = set(unique_behaviors) - set(behaviour_colours.keys())
+        if missing_behaviors:
+            print(f"Warning: Found behaviors not in color dictionary: {missing_behaviors}")
+            print("Adding them with default colors...")
+            # Add missing behaviors with random colors
+            default_colors = plt.cm.tab20(np.linspace(0, 1, len(missing_behaviors)))
+            for i, beh in enumerate(missing_behaviors):
+                behaviour_colours[beh] = mcolors.rgb2hex(default_colors[i])
+        
+        # Convert behavior strings to numeric for plotting
+        behavior_to_num = {beh: i for i, beh in enumerate(behaviour_colours.keys())}
+        
+        # Create numeric matrix
+        numeric_data = ethogram_data.replace(behavior_to_num)
+        
+        cmap = mcolors.ListedColormap(list(behaviour_colours.values()))
+        vmax = len(behaviour_colours) - 1
+        legend_handles = [mpatches.Patch(color=color, label=beh) 
+                         for beh, color in behaviour_colours.items()]
+        
+        # Mask NaN values
+        mask = numeric_data.isna()
+        plot_data = numeric_data
+        
+    elif variable == 'View':
+        # Convert view strings to numeric
+        view_to_num = {view: i for i, view in enumerate(view_colours.keys())}
+        numeric_data = ethogram_data.replace(view_to_num)
+        
+        cmap = mcolors.ListedColormap(list(view_colours.values()))
+        vmax = len(view_colours) - 1
+        legend_handles = [mpatches.Patch(color=color, label=view) 
+                         for view, color in view_colours.items()]
+        
+        mask = numeric_data.isna()
+        plot_data = numeric_data
+        
+    elif variable == 'Speed':
+        vmax = 20  # mm/s
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+        
+    elif variable == 'Orientation':
+        vmax = 360
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+        
+    else:
+        # Generic continuous variable
+        plot_data = ethogram_data
+        mask = ethogram_data.isna()
+    
+    # Set bad color (for NaN/masked values)
+    cmap.set_bad('white')
+    
+    # Create heatmap
+    sns.heatmap(plot_data, mask=mask, cmap=cmap, vmin=0, vmax=vmax, 
+                cbar=cbar, ax=ax, linewidths=0, alpha=1, rasterized=True)
+    
+    # Add legend for categorical variables
+    if legend_handles:
+        plt.legend(handles=legend_handles, bbox_to_anchor=(1.15, 1), 
+                  loc='upper left', title=variable, fontsize=10)
+    
+    # Add vertical lines at loom onsets and offsets
+    n_frames_per_loom = frames_before + frames_after + 1
+    for i, loom_idx in enumerate(loom_indices):
+        # Loom onset position
+        loom_onset_frame = i * n_frames_per_loom + frames_before
+        ax.axvline(x=loom_onset_frame, color='black', linewidth=2, linestyle='-', alpha=0.8)
+        
+        # Loom offset position
+        loom_offset_frame = loom_onset_frame + loom_duration_frames
+        ax.axvline(x=loom_offset_frame, color='black', linewidth=2, linestyle='-', alpha=0.8)
+        
+        # Add text label at top
+        ax.text(loom_onset_frame, -0.5, f'Loom {loom_idx+1}', 
+               ha='center', va='top', fontsize=10, fontweight='bold')
+    
+    # Set up x-axis (time)
+    n_frames_per_loom = frames_before + frames_after + 1
+    x_ticks = []
+    x_labels = []
+    
+    for i, loom_idx in enumerate(loom_indices):
+        # Loom onset position
+        loom_onset_frame = i * n_frames_per_loom + frames_before
+        
+        # Add ticks: start of window, loom onset, loom offset, end of window
+        # Start of window
+        x_ticks.append(i * n_frames_per_loom)
+        x_labels.append(f'-{frames_before/frame_rate:.1f}s')
+        
+        # Loom onset
+        x_ticks.append(loom_onset_frame)
+        x_labels.append('ON')
+        
+        # Loom offset
+        loom_offset_frame = loom_onset_frame + loom_duration_frames
+        x_ticks.append(loom_offset_frame)
+        x_labels.append('OFF')
+        
+        # End of window
+        x_ticks.append((i + 1) * n_frames_per_loom - 1)
+        x_labels.append(f'+{frames_after/frame_rate:.1f}s')
+    
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=9)
+    ax.set_xlabel('Time', fontsize=12)
+    ax.set_ylabel('Fly ID', fontsize=12)
+    
+    # Show y-axis with fly numbers
+    ax.yaxis.set_visible(True)
+    fly_ticks = np.arange(0, len(ethogram_data), max(1, len(ethogram_data)//20))  # Show max 20 ticks
+    ax.set_yticks(fly_ticks + 0.5)
+    ax.set_yticklabels(fly_ticks, fontsize=8)
+    
+    # Title
+    title = f'{group_name} - {variable}\n(Looms {loom_indices[0]+1} to {loom_indices[-1]+1})'
+    ax.set_title(title, fontsize=14, pad=20)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    
+    plt.show() 
+ 
+# Create ethograms for the same looms with different variables
+loom_indices = list(range(5))  # First 5 looms
+frames_before = 120  # 2 seconds before
+frames_after = 120   # 2 seconds after
+loom_duration_frames = 30  # 0.5 seconds loom duration
+
+# Behavior ethogram
+ethogram_behavior = create_ethogram_data(
+    all_flies_data_with_looms, 'Charlie_Behavior',
+    loom_indices, frames_before, frames_after
+)
+
+plot_ethogram_raster(ethogram_behavior, 'Charlie_Behavior', group1_label,
+                     loom_indices, frames_before, frames_after, frame_rate,
+                     loom_duration_frames=loom_duration_frames,
+                     save_path=plot_path + '/ethogram_behavior_loom.jpeg')
+
+# Speed ethogram - same flies, same positions!
+ethogram_speed = create_ethogram_data(
+    all_flies_data_with_looms, 'Speed',
+    loom_indices, frames_before, frames_after
+)
+
+plot_ethogram_raster(ethogram_speed, 'Speed', group1_label,
+                     loom_indices, frames_before, frames_after, frame_rate,
+                     loom_duration_frames=loom_duration_frames,
+                     save_path=plot_path + '/ethogram_speed_loom.jpeg') 
 #%% 
 """        
     for loom in range(len(df_try)):    
