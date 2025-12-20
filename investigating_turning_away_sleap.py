@@ -204,10 +204,6 @@ def save_bout_statistics(bout_data, group_name, save_path):
     return df_stats
 
 #%%
-
-
-
-#%%
 def plot_polar(path, group_name, all_flies_data_with_looms):
     df_group_polar = data_polar_all_flies(path, group_name, all_flies_data_with_looms)
     #save_path = path + '/plots/'
@@ -439,157 +435,6 @@ def plot_polar_fake_loom(path, group_name, all_flies_data_with_fake_looms):
                 bbox_inches='tight', dpi=1800)
     plt.show()  
 #%%
-
-
-def load_path():
-    root = tkinter.Tk()
-    filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files') #select folder called "classified_pose"
-    root.destroy()
-    return filename
-exp_path = load_path()
-
-plot_path = exp_path + '/plots'
-plot_path_pdf = exp_path + '/plots_pdf'
-
-plot_path_escape_plots = exp_path + '/plots/escape_plots'
-plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
-
-#CHANGE EXPT NAME AND GROUP LABELS BELOW
-experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-group1_label = 'VLF-39347'
-
-#arena in mm
-arena_raggio = 15 #in mm
-arena_center_x = 15 
-arena_center_y = 15
-
-#TIME SCALES
-frame_rate = 60
-
-#EXPERIMENT DURATION (in sec)
-baseline  = 30 #300
-stimulation = 300
-#(in min)
-total_duration_min = (baseline + stimulation) / 60
-#(in frame)
-baseline_frames = baseline * frame_rate
-stimulation_frames = stimulation * frame_rate
-tot_frame = baseline_frames + stimulation_frames
-
-#Zoom plots window
-number_of_looms= 20
-loom_duration_sec = 0.5
-loom_duration  = loom_duration_sec * frame_rate
-
-
-all_flies_data_with_looms = [] #is a list of tupla: with the df_try and an array with loom onset for every fly!
-all_flies_data_with_fake_looms = [] #is a list of tupla: with the df_try and an array with fake loom onset (same inter loom interval but during baseline) for every fly!
-#%%
-'''upload scored file'''
-
-df_all = pd.DataFrame()
-
-path = exp_path
-jump_velocity = 75
-
-behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns included as escape!!
-if behavior_files:                                                                                  #NB. _Behavior.csv need to contain group1_label otherwise will not find it!
-    df_behave_charlie = pd.read_csv(os.path.join(path, behavior_files[0]))
-    print(f"Loaded behavior file: {behavior_files[0]}")
-else:
-    print(f"Warning: No _Behavior.csv file found containing '{group1_label}'!")
-    df_behave_charlie = None
-
-
-for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
-    if not filename.endswith('classified_pose.csv'):
-        continue
-    capital_x = filename.replace('X','x')
-    if not capital_x.startswith(experiment_name):
-        continue
-    df_try = pd.read_csv(path+'/control_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
-
-    # Add Charlie behavior data to df_try if available
-    if df_behave_charlie is not None:
-        # Find the column that ends with the current filename (ignoring path prefix)
-        matching_column = None
-        for col in df_behave_charlie.columns:
-            if col.endswith(filename):
-                matching_column = col
-                break
-    
-        if matching_column:    # Create a temporary dataframe with frame and behavior for this fly
-            df_behavior_temp = df_behave_charlie[['frame', matching_column]].copy()
-            df_behavior_temp.columns = ['frame', 'Charlie_Behavior']  # Rename for clarity    
-            df_try = df_try.merge(df_behavior_temp, left_on='FrameIndex', right_on='frame', how='left') # Merge with df_try based on frame alignment   
-            df_try = df_try.drop('frame', axis=1)             # Drop the redundant 'frame' column after merge   
-            print(f"Added behavior data for {filename}")
-        else:
-            print(f"Warning: No column ending with '{filename}' found in behavior file")
-            df_try['Charlie_Behavior'] = None
-    else:
-        df_try['Charlie_Behavior'] = None
-            
-    loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-    loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-    loom_onset_fake = loom_onset - baseline_frames
-    
-    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
-    all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
-#%%   
-    df_try['esc_turn'] = 0
-    df_try['esc_run'] = 0
-    df_try['esc_jump'] = 0
-    df_try['backwards'] = 0
-    df_try['walk_away'] = 0
-    df_try['escape'] = 0 #containing all form of escape: esc_turn, esc_run, esc_jump, backwards, 'walk_away'
-    df_try['freeze'] = 0 # this before was called 'esc_freeze' contain freeze and resistent freeze
-    df_try['walk_speed'] = np.nan
-    df_try['speed2d'] = np.nan
-
-    '''checking turns'''
-    heading_x_before = []
-    heading_y_before = []
-    heading_x_after = []
-    heading_y_after = []
-      
-    df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
-    df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed     
-        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run! 
-    # Step 1: Create a cleaned velocity column (remove jumps)
-    df_try['walk_velocity_clean'] = df_try['walk_speed'].copy()
-    #df_try['orientation_clean'] = df_try['Orientation'].copy()    
-    # Mark frames with jumps as NaN
-    df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan
-    #df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'orientation_clean'] = np.nan    
-    # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
-    for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index:
-        if idx >= 6:
-            df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
-            #df_try.loc[idx-6:idx-1, 'orientation_clean'] = np.nan
-        if idx <= len(df_try) - 7:
-            df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
-            #df_try.loc[idx+1:idx+6, 'orientation_clean'] = np.nan    
-    # Step 2: Apply running average (7 frames) - NaNs will be skipped
-    df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
-    #df_try['orientation_smooth'] = df_try['orientation_clean'].rolling(window=7, center=True, min_periods=1).mean()       
- #%%
-    '''checking jumps, freeze, backwards'''
-    for i in range(len(loom_onset)):
-        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
-            df_try.loc[loom_offset[i], 'esc_jump'] = 1
-     
-        elif ((df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
-              (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 0:
-            df_try.loc[loom_offset[i], 'freeze'] = 1
-            
-        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
-            df_try.loc[loom_offset[i], 'backwards'] = 1
- #%%  commenting just because I don't need right now but is correct!          
-plot_polar(exp_path, group1_label, all_flies_data_with_looms)
-#plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
- #%% 
-
 def plot_bout_analysis(bout_data, group_name, save_path):
     """
     Plot bout duration distributions (log scale) and counts for baseline vs stimulation.
@@ -669,7 +514,6 @@ def plot_bout_analysis(bout_data, group_name, save_path):
 # Print summary
 #print(f"\nBaseline: {bout_analysis['baseline']['total_bouts']} total bouts, mean duration: {bout_analysis['baseline']['mean_duration']:.2f} frames")
 #print(f"Stimulation: {bout_analysis['stimulation']['total_bouts']} total bouts, mean duration: {bout_analysis['stimulation']['mean_duration']:.2f} frames")
-
         #%% 
 def plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, arena_raggio, arena_center_x, arena_center_y, group_name, save_path, behavior_label='Turn'):
     """
@@ -764,6 +608,7 @@ def plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, a
 
 # Usage:
 #plot_turn_spatial_distribution(all_flies_data_with_looms, baseline_frames, arena_raggio, arena_center_x, arena_center_y,  group1_label, plot_path, behavior_label='Turn')
+
    #%% 
 def plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group_name, save_path, behavior_label='Turn'): #real loom 
     """
@@ -1011,8 +856,164 @@ def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms,
     print(f"Total turn bouts during fake loom windows: {len(positions_x)}")
 
 # Usage:
-plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #real loom #'Floor_Turn'
+#plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #real loom #'Floor_Turn'
 #plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Turn')  #fake loom but remember to change title and name of fig in the function   
+#%%
+
+
+
+def load_path():
+    root = tkinter.Tk()
+    filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files') #select folder called "classified_pose"
+    root.destroy()
+    return filename
+exp_path = load_path()
+
+plot_path = exp_path + '/plots'
+plot_path_pdf = exp_path + '/plots_pdf'
+
+plot_path_escape_plots = exp_path + '/plots/escape_plots'
+plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
+
+#CHANGE EXPT NAME AND GROUP LABELS BELOW
+experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_label = 'VLF-39347'
+
+#arena in mm
+arena_raggio = 15 #in mm
+arena_center_x = 15 
+arena_center_y = 15
+
+#TIME SCALES
+frame_rate = 60
+
+#EXPERIMENT DURATION (in sec)
+baseline  = 30 #300
+stimulation = 300
+#(in min)
+total_duration_min = (baseline + stimulation) / 60
+#(in frame)
+baseline_frames = baseline * frame_rate
+stimulation_frames = stimulation * frame_rate
+tot_frame = baseline_frames + stimulation_frames
+
+#Zoom plots window
+number_of_looms= 20
+loom_duration_sec = 0.5
+loom_duration  = loom_duration_sec * frame_rate
+
+
+all_flies_data_with_looms = [] #is a list of tupla: with the df_try and an array with loom onset for every fly!
+all_flies_data_with_fake_looms = [] #is a list of tupla: with the df_try and an array with fake loom onset (same inter loom interval but during baseline) for every fly!
+#%%
+'''upload scored file'''
+
+df_all = pd.DataFrame()
+
+path = exp_path
+jump_velocity = 75
+
+behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns included as escape!!
+if behavior_files:                                                                                  #NB. _Behavior.csv need to contain group1_label otherwise will not find it!
+    df_behave_charlie = pd.read_csv(os.path.join(path, behavior_files[0]))
+    print(f"Loaded behavior file: {behavior_files[0]}")
+else:
+    print(f"Warning: No _Behavior.csv file found containing '{group1_label}'!")
+    df_behave_charlie = None
+
+
+for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
+    if not filename.endswith('classified_pose.csv'):
+        continue
+    capital_x = filename.replace('X','x')
+    if not capital_x.startswith(experiment_name):
+        continue
+    df_try = pd.read_csv(path+'/control_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation'])
+
+    # Add Charlie behavior data to df_try if available
+    if df_behave_charlie is not None:
+        # Find the column that ends with the current filename (ignoring path prefix)
+        matching_column = None
+        for col in df_behave_charlie.columns:
+            if col.endswith(filename):
+                matching_column = col
+                break
+    
+        if matching_column:    # Create a temporary dataframe with frame and behavior for this fly
+            df_behavior_temp = df_behave_charlie[['frame', matching_column]].copy()
+            df_behavior_temp.columns = ['frame', 'Charlie_Behavior']  # Rename for clarity    
+            df_try = df_try.merge(df_behavior_temp, left_on='FrameIndex', right_on='frame', how='left') # Merge with df_try based on frame alignment   
+            df_try = df_try.drop('frame', axis=1)             # Drop the redundant 'frame' column after merge   
+            print(f"Added behavior data for {filename}")
+        else:
+            print(f"Warning: No column ending with '{filename}' found in behavior file")
+            df_try['Charlie_Behavior'] = None
+    else:
+        df_try['Charlie_Behavior'] = None
+            
+    loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
+    loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
+    loom_onset_fake = loom_onset - baseline_frames
+    
+    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
+    all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
+#%%   
+    df_try['esc_turn'] = 0
+    df_try['esc_run'] = 0
+    df_try['esc_jump'] = 0
+    df_try['backwards'] = 0
+    df_try['walk_away'] = 0
+    df_try['escape'] = 0 #containing all form of escape: esc_turn, esc_run, esc_jump, backwards, 'walk_away'
+    df_try['freeze'] = 0 # this before was called 'esc_freeze' contain freeze and resistent freeze
+    df_try['walk_speed'] = np.nan
+    df_try['speed2d'] = np.nan
+
+    '''checking turns'''
+    heading_x_before = []
+    heading_y_before = []
+    heading_x_after = []
+    heading_y_after = []
+      
+    df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
+    df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed     
+        #%% CLEAN VELOCITY DATA: REMOVE JUMPS AND SMOOTH - it will be inportant for esc_run! 
+    # Step 1: Create a cleaned velocity column (remove jumps)
+    df_try['walk_velocity_clean'] = df_try['walk_speed'].copy()
+    #df_try['orientation_clean'] = df_try['Orientation'].copy()    
+    # Mark frames with jumps as NaN
+    df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan
+    #df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'orientation_clean'] = np.nan    
+    # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
+    for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index:
+        if idx >= 6:
+            df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
+            #df_try.loc[idx-6:idx-1, 'orientation_clean'] = np.nan
+        if idx <= len(df_try) - 7:
+            df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
+            #df_try.loc[idx+1:idx+6, 'orientation_clean'] = np.nan    
+    # Step 2: Apply running average (7 frames) - NaNs will be skipped
+    df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
+    #df_try['orientation_smooth'] = df_try['orientation_clean'].rolling(window=7, center=True, min_periods=1).mean()       
+ #%%
+    '''checking jumps, freeze, backwards'''
+    for i in range(len(loom_onset)):
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
+            df_try.loc[loom_offset[i], 'esc_jump'] = 1
+     
+        elif ((df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
+              (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 0:
+            df_try.loc[loom_offset[i], 'freeze'] = 1
+            
+        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
+            df_try.loc[loom_offset[i], 'backwards'] = 1
+ #%%  commenting just because I don't need right now but is correct!          
+plot_polar(exp_path, group1_label, all_flies_data_with_looms)
+#plot_polar_fake_loom(exp_path, group1_label, all_flies_data_with_fake_looms)
+ #%% 
+
+
+
+
 #%% 
 """        
     for loom in range(len(df_try)):    
