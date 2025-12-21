@@ -861,9 +861,44 @@ def plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms,
 #plot_turn_spatial_loom_with_orientation(all_flies_data_with_looms, group1_label, plot_path, behavior_label='Floor_Turn')  #real loom #'Floor_Turn'
 #plot_turn_spatial_fake_loom_with_orientation(all_flies_data_with_fake_looms, group1_label, plot_path, behavior_label='Turn')  #fake loom but remember to change title and name of fig in the function   
 #%%
-
-
-
+def simplify_behaviors(df_try):
+    """
+    Simplify behavior categories by combining similar behaviors.
+    
+    Parameters:
+    -----------
+    df_try : pd.DataFrame
+        Dataframe with 'Behavior' column
+        
+    Returns:
+    --------
+    pd.DataFrame : Modified dataframe with simplified behaviors
+    """
+    # Create a copy to avoid modifying original
+    #df_try = df_try.copy()
+    
+    # Define mapping from complex to simplified behaviors
+    behavior_mapping = {
+        # Freeze variants -> Freeze
+        'Transient_Freeze': 'Freeze',
+        'Sustained_Freeze': 'Freeze',
+        'Resistant_Freeze': 'Resistant_Freeze',      
+        # Stationary variants -> Stationary
+        'Transient_Stationary': 'Stationary',
+        'Sustained_Stationary': 'Stationary',
+        'Resistant_Stationary': 'Stationary',        
+        # Walk variants -> Walk
+        'Transient_Walk': 'Walk',
+        'Sustained_Walk': 'Walk',
+        'Resistant_Walk': 'Walk',        
+        # Jump variants -> Jump
+        'Transient_Jump': 'Jump',
+    }
+    
+    # Apply mapping
+    df_try['Behavior'] = df_try['Behavior'].replace(behavior_mapping)    
+    return df_try
+#%%
 def load_path():
     root = tkinter.Tk()
     filename = tkinter.filedialog.askdirectory(parent=root, title='Choose parent folder to load files') #select folder called "classified_pose"
@@ -955,10 +990,10 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             
     loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
     loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-    loom_onset_fake = loom_onset - baseline_frames
-    
+    loom_onset_fake = loom_onset - baseline_frames    
+    df_try = simplify_behaviors(df_try) #simplify Matheus original behaviour (they are too many, impossible to understand anything)   
     all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
-    all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
+    #all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
 #%%   
     df_try['esc_turn'] = 0
     df_try['esc_run'] = 0
