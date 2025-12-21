@@ -21,6 +21,7 @@ from matplotlib.lines import Line2D
 import pickle
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.gridspec as gridspec
 #%%
 def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_Behavior'):
     """
@@ -1078,7 +1079,7 @@ def create_ethogram_data_aligned(all_flies_data_with_looms, variable, loom_indic
 def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_name,
                                  frames_before=60, frames_after=60, frame_rate=60, 
                                  loom_duration_frames=30,
-                                 cbar=True, figsize=None, save_path=None):
+                                 cbar=True, figsize=None, save_path=None): #figsize=(10, 15)
     """
     Plot ethogram raster with all looms aligned to common onset/offset.
     
@@ -1107,16 +1108,21 @@ def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_
     save_path : str
         Path to save the figure (optional)
     """
-    # Auto-calculate figure size if not provided
-    if figsize is None:
-        n_trials = len(ethogram_data)
-        n_frames = len(ethogram_data.columns)
-        # Width based on time, height based on number of trials
-        width = max(10, n_frames / 20)
-        height = max(6, n_trials / 20)
-        figsize = (width, height)
     
-    fig, ax = plt.subplots(figsize=figsize)
+    raster_width = 8 # Width of the actual raster plot
+    raster_height = 10 # Height of the actual raster plot
+# Add space for margins, labels, legend
+    fig_width = raster_width + 4  # Extra space for legend and margins
+    fig_height = raster_height + 2  # Extra space for title and labels    
+    
+    
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    
+    # Create GridSpec: main plot takes fixed space, rest is for legend/labels
+    gs = gridspec.GridSpec(1, 2, figure=fig, width_ratios=[raster_width, 4], 
+                          wspace=0.3, left=0.1, right=0.95, top=0.93, bottom=0.1)
+    
+    ax = fig.add_subplot(gs[0, 0])  # Main raster plot in first column
     
     # Define color schemes for different variables
     behaviour_colours = {
@@ -1208,10 +1214,17 @@ def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_
     sns.heatmap(plot_data, mask=mask, cmap=cmap, vmin=0, vmax=vmax, 
                 cbar=cbar, ax=ax, linewidths=0, alpha=1, rasterized=True)
     
-    # Add legend for categorical variables
+# Add legend for categorical variables
     if legend_handles:
-        plt.legend(handles=legend_handles, bbox_to_anchor=(1.15, 1), 
-                  loc='upper left', title=variable, fontsize=10)
+        # Place legend in the second column (separate from raster)
+        legend_ax = fig.add_subplot(gs[0, 1])
+        legend_ax.axis('off')
+        legend_ax.legend(handles=legend_handles, loc='center left', 
+                        title=variable, fontsize=10, frameon=False)
+    elif cbar and variable not in ['Charlie_Behavior', 'Behavior', 'View']:
+        # For continuous variables, add colorbar in second column
+        cbar_ax = fig.add_subplot(gs[0, 1])
+        cbar_ax.axis('off')
     
     # Add vertical lines at loom onset and offset (ONLY TWO LINES)
     loom_onset_frame = frames_before
@@ -1220,11 +1233,6 @@ def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_
     ax.axvline(x=loom_onset_frame, color='black', linewidth=3, linestyle='-', alpha=0.9, zorder=10)
     ax.axvline(x=loom_offset_frame, color='black', linewidth=3, linestyle='-', alpha=0.9, zorder=10)
     
-    # Add text labels
-    ax.text(loom_onset_frame, -1, 'Loom ON', ha='center', va='top', 
-           fontsize=12, fontweight='bold')
-    ax.text(loom_offset_frame, -1, 'Loom OFF', ha='center', va='top', 
-           fontsize=12, fontweight='bold')
     
     # Set up x-axis (time)
     time_points = [-frames_before/frame_rate, 0, loom_duration_frames/frame_rate, frames_after/frame_rate]
@@ -1245,12 +1253,24 @@ def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_
     # Title with trial count
     n_flies = len(set(m['fly_idx'] for m in trial_metadata))
     title = f'{group_name} - {variable}\n({n_trials} trials from {n_flies} flies)'
-    ax.set_title(title, fontsize=14, pad=20)
-    
-    plt.tight_layout()
+    fig.suptitle(title, fontsize=14, y=0.98)
     
     if save_path:
-        plt.savefig(save_path, bbox_inches='tight', dpi=300)
+        try:
+            # Ensure directory exists
+            import os
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
+            
+            # Save as PNG instead of JPEG (more reliable)
+            if save_path.endswith('.jpeg') or save_path.endswith('.jpg'):
+                save_path = save_path.replace('.jpeg', '.png').replace('.jpg', '.png')
+            
+            plt.savefig(save_path, bbox_inches='tight', dpi=300, format='png')
+            print(f"Saved ethogram to: {save_path}")
+        except Exception as e:
+            print(f"Error saving figure: {e}")
     
     plt.show()
 
