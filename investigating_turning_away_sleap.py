@@ -925,7 +925,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 30 #300
+baseline  = 300 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -1316,7 +1316,7 @@ def filter_turns_in_window(df_try, loom_start, window_start, window_end):
     Filter function: Include only trials where fly turned during the window.
     """
     window_data = df_try.loc[window_start:window_end]
-    has_turn = (window_data['Charlie_Behavior'] == 'Turn').any()
+    has_turn = (window_data['Charlie_Behavior'] == 'Turn').any() #change to Floor_Turn if you want Floor turn 
     return has_turn
 
 
@@ -1336,7 +1336,7 @@ def filter_speed_threshold(df_try, loom_start, window_start, window_end, min_spe
     window_data = df_try.loc[window_start:window_end]
     exceeded_threshold = (window_data['Speed'] > min_speed).any()
     return exceeded_threshold
-
+"""
 
 # Example usage:
 
@@ -1361,7 +1361,7 @@ plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'View', group1_labe
 ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
 plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_original_behav_turns_only.png')
 
-"""
+
 # ONLY TRIALS WITH JUMPS
 ethogram_jumps, metadata_jumps = create_ethogram_data_aligned(
     all_flies_data_with_looms, 
@@ -1398,6 +1398,121 @@ plot_ethogram_raster_aligned(
 )
 
 """
+ #%%
+def sort_ethogram_simple(ethogram_data, sort_by='turn_count', frames_before=60, 
+                         loom_duration_frames=30):
+    """
+    Sort ethogram data directly based on the data itself.
+    Works on filtered data!
+    
+    Returns sorted data AND the sorting indices.
+    """
+    loom_onset_frame = frames_before
+    loom_offset_frame = frames_before + loom_duration_frames
+    
+    sort_values = []
+    
+    for idx, (row_idx, row) in enumerate(ethogram_data.iterrows()):
+        if sort_by == 'turn_count':
+            turn_count = (row.iloc[loom_onset_frame:] == 'Turn').sum() #change to Turn if you want to sort by wall turn 
+            sort_values.append(turn_count)
+            
+        elif sort_by == 'turn_count_during':
+            turn_count = (row.iloc[loom_onset_frame:loom_offset_frame] == 'Turn').sum()
+            sort_values.append(turn_count)
+            
+        elif sort_by == 'turn_count_after':
+            turn_count = (row.iloc[loom_offset_frame:] == 'Turn').sum()
+            sort_values.append(turn_count)
+            
+        elif sort_by == 'first_turn_latency':
+            post_loom = row.iloc[loom_onset_frame:]
+            turn_frames = np.where(post_loom == 'Turn')[0]
+            latency = turn_frames[0] if len(turn_frames) > 0 else 9999
+            sort_values.append(latency)
+            
+        elif sort_by == 'mean_speed':
+            mean_speed = row.iloc[loom_onset_frame:].mean()
+            sort_values.append(mean_speed if not pd.isna(mean_speed) else 0)
+            
+        elif sort_by == 'max_speed':
+            max_speed = row.iloc[loom_onset_frame:].max()
+            sort_values.append(max_speed if not pd.isna(max_speed) else 0)
+    
+    # Get sorting indices
+    if sort_by == 'first_turn_latency':
+        sorted_indices = np.argsort(sort_values)  # Ascending
+    else:
+        sorted_indices = np.argsort(sort_values)[::-1]  # Descending
+    
+    # Apply sorting
+    sorted_ethogram = ethogram_data.iloc[sorted_indices].reset_index(drop=True)
+    
+    return sorted_ethogram, sorted_indices
+
+
+# COMPLETE EXAMPLE - ADD THIS TO YOUR CODE:
+
+# Step 1: Create filtered ethograms for all variables you want
+ethogram_charlie_behavior, metadata = create_ethogram_data_aligned(
+    all_flies_data_with_looms, 
+    variable='Charlie_Behavior',
+    loom_indices=list(range(20)),
+    frames_before=120,
+    frames_after=120,
+    filter_func=filter_turns_in_window  # Filtered!
+)
+
+ethogram_behavior, _ = create_ethogram_data_aligned(
+    all_flies_data_with_looms, 
+    variable='Behavior',
+    loom_indices=list(range(20)),
+    frames_before=120,
+    frames_after=120,
+    filter_func=filter_turns_in_window  # Same filter!
+)
+
+ethogram_view, _ = create_ethogram_data_aligned(
+    all_flies_data_with_looms, 
+    variable='View',
+    loom_indices=list(range(20)),
+    frames_before=120,
+    frames_after=120,
+    filter_func=filter_turns_in_window  # Same filter!
+)
+
+# Step 2: Sort the BEHAVIOR ethogram and get the sorting indices
+ethogram_sorted_charlie_behavior, sort_indices = sort_ethogram_simple(
+    ethogram_charlie_behavior, 
+    sort_by='turn_count',
+    frames_before=120,
+    loom_duration_frames=30
+)
+
+# Step 3: Apply THE SAME sorting indices to ALL other variables
+ethogram_sorted_behavior = ethogram_behavior.iloc[sort_indices].reset_index(drop=True)
+ethogram_sorted_view = ethogram_view.iloc[sort_indices].reset_index(drop=True)
+
+# Step 4: Plot everything with the same sorting
+plot_ethogram_raster_aligned(
+    ethogram_sorted_charlie_behavior, metadata, 'Charlie_Behavior', group1_label,
+    120, 120, 60, 30,
+    save_path=plot_path + '/behavior_sorted_by_Turn.png'
+)
+
+plot_ethogram_raster_aligned(
+    ethogram_sorted_behavior, metadata, 'Behavior', group1_label,
+    120, 120, 60, 30,
+    save_path=plot_path + '/original_Behavior_sorted_by_Turn.png'
+)
+
+plot_ethogram_raster_aligned(
+    ethogram_sorted_view, metadata, 'View', group1_label,
+    120, 120, 60, 30,
+    save_path=plot_path + '/view_sorted_by_Turn.png'
+)
+
+
  #%% ETOGRAMME WITH LOOM SIDE BY SIDE (YOU CAN SELECT THE n OF LOOM THAT YOU WANT AND THE SIZE OF THE WINDOW) - work well
 
 def create_ethogram_data(all_flies_data_with_looms, variable, loom_indices, 
