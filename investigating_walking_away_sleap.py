@@ -1052,21 +1052,20 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             pre_loom_start = max(0, loom_onset[i] - 120)
             pre_loom_data = df_try.loc[pre_loom_start:loom_onset[i]-1]
             
-            # Check if fly was stationary or freezing before loom (all frames)
+            # Check if fly was stationary or freezing before loom
+            # Must be mostly Stationary/Freeze/Resistant_Freeze
+            # Allow up to 2 frames of ANY other behavior EXCEPT Jump
             pre_loom_behaviors = pre_loom_data['Charlie_Behavior'].values
-            #is_stationary_before = all(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
-            #                          for b in pre_loom_behaviors if pd.notna(b))
             
+            # Count Jump frames (not allowed at all)
+            jump_frames_count = sum(b == 'Jump' for b in pre_loom_behaviors if pd.notna(b))
             
+            # Count frames that are NOT stationary/freeze (but excluding Jump from this count)
+            non_stationary_count = sum(b not in ['Stationary', 'Freeze', 'Resistant_Freeze', 'Jump'] 
+                                       for b in pre_loom_behaviors if pd.notna(b))
             
-
-            # At least 95% of frames must be stationary/freeze
-            stationary_frames = sum(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
-                                    for b in pre_loom_behaviors if pd.notna(b))
-            total_frames = sum(pd.notna(b) for b in pre_loom_behaviors)
-            is_stationary_before = (stationary_frames / total_frames) >= 0.95 if total_frames > 0 else False
-
-
+            # Allow if: (1) NO jumps AND (2) less than 3 frames of other behaviors
+            is_stationary_before = (jump_frames_count == 0) and (non_stationary_count < 3)
             
             if is_stationary_before:
                 # Check if starts walking within 2.5s (150 frames) after loom onset
