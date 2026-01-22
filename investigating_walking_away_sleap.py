@@ -925,7 +925,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 300 #300
+baseline  = 30 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -1028,7 +1028,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
     df_try['speed2d_smooth'] = df_try['speed2d_clean'].rolling(window=7, center=True, min_periods=1).mean()      
  #%%
-    '''checking jumps, freeze, backwards, walk_away''' # behaviour mutually exclusive at the moment!
+    '''checking jumps, freeze, backwards, turning, walk_away''' # behaviour mutually exclusive at the moment!
     for i in range(len(loom_onset)):
         if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
             df_try.loc[loom_offset[i], 'esc_jump'] = 1
@@ -1048,14 +1048,25 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         
         # Walk away check
         else:
-            # Check pre-loom behavior (1 second before loom)
+            # Check pre-loom behavior (2 second before loom)
             pre_loom_start = max(0, loom_onset[i] - 120)
             pre_loom_data = df_try.loc[pre_loom_start:loom_onset[i]-1]
             
-            # Check if fly was stationary or freezing before loom
+            # Check if fly was stationary or freezing before loom (all frames)
             pre_loom_behaviors = pre_loom_data['Charlie_Behavior'].values
-            is_stationary_before = all(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
+            #is_stationary_before = all(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
                                       for b in pre_loom_behaviors if pd.notna(b))
+            
+            
+            
+
+            # At least 95% of frames must be stationary/freeze
+            stationary_frames = sum(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
+                                    for b in pre_loom_behaviors if pd.notna(b))
+            total_frames = sum(pd.notna(b) for b in pre_loom_behaviors)
+            is_stationary_before = (stationary_frames / total_frames) >= 0.95 if total_frames > 0 else False
+
+
             
             if is_stationary_before:
                 # Check if starts walking within 2.5s (150 frames) after loom onset
@@ -1063,13 +1074,13 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
                 post_loom_data = df_try.loc[loom_onset[i]:post_loom_end]
                 walk_frames = post_loom_data[post_loom_data['Charlie_Behavior'] == 'Walk'].index.tolist()
                 
-                if len(walk_frames) > 0:
+                if len(walk_frames) >= 3:
                     df_try.loc[loom_offset[i], 'walk_away'] = 1  
                 
                 
 #%% Walk Away Analysis Functions
 
-def identify_walk_away_trials(all_flies_data_with_looms, pre_loom_window=60, 
+def identify_walk_away_trials(all_flies_data_with_looms, pre_loom_window=120, 
                                post_loom_window=150):
     """
     Extract walk away trials from already flagged data.
@@ -1277,8 +1288,8 @@ def plot_walk_away_distance_distribution(walk_away_trials, group_name, save_path
     # Plot 1: Distance distribution
     ax1 = axes[0]
     ax1.hist(distances, bins=20, color='blue', alpha=0.7, edgecolor='black')
-    ax1.axvline(x=np.mean(distances), color='red', linestyle='--', linewidth=2, 
-               label=f'Mean: {np.mean(distances):.1f} mm')
+    ax1.axvline(x=np.median(distances), color='red', linestyle='--', linewidth=2, 
+               label=f'median: {np.median(distances):.1f} mm')
     ax1.set_xlabel('Total Distance Traveled (mm)', fontsize=12)
     ax1.set_ylabel('Count', fontsize=12)
     ax1.set_title(f'{group_name} - Walk Away Distance Distribution\n(n={len(walk_away_trials)} trials)', 
@@ -1289,8 +1300,8 @@ def plot_walk_away_distance_distribution(walk_away_trials, group_name, save_path
     # Plot 2: Latency to walk start
     ax2 = axes[1]
     ax2.hist(latencies, bins=20, color='green', alpha=0.7, edgecolor='black')
-    ax2.axvline(x=np.mean(latencies), color='red', linestyle='--', linewidth=2, 
-               label=f'Mean: {np.mean(latencies):.2f} s')
+    ax2.axvline(x=np.median(latencies), color='red', linestyle='--', linewidth=2, 
+               label=f'median: {np.median(latencies):.2f} s')
     ax2.set_xlabel('Latency to Walk Start (s)', fontsize=12)
     ax2.set_ylabel('Count', fontsize=12)
     ax2.set_title('Walk Start Latency Distribution', fontsize=14)
