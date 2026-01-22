@@ -1055,7 +1055,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             # Check if fly was stationary or freezing before loom (all frames)
             pre_loom_behaviors = pre_loom_data['Charlie_Behavior'].values
             #is_stationary_before = all(b in ['Stationary', 'Freeze', 'Resistant_Freeze'] 
-                                      for b in pre_loom_behaviors if pd.notna(b))
+            #                          for b in pre_loom_behaviors if pd.notna(b))
             
             
             
