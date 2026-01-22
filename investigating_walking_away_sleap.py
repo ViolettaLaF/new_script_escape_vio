@@ -990,8 +990,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             
     loom_onset = df_try.loc[df_try['VisualStim'].diff() == -1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
     loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int) #changed here as my loom are flipped_coming from bonsai tracker!!!
-    loom_onset_fake = loom_onset - baseline_frames 
-    loom_offset_fake = loom_offset - baseline_frames
+    loom_onset_fake = loom_onset - baseline_frames    
     df_try = simplify_behaviors(df_try) #simplify Matheus original behaviour (they are too many, impossible to understand anything)   
     all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
     all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
@@ -1030,28 +1029,28 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try['speed2d_smooth'] = df_try['speed2d_clean'].rolling(window=7, center=True, min_periods=1).mean()      
  #%%
     '''checking jumps, freeze, backwards, turning, walk_away''' # behaviour mutually exclusive at the moment!
-    for i in range(len(loom_onset_fake)):
-        if (df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
-            df_try.loc[loom_offset_fake[i], 'esc_jump'] = 1
+    for i in range(len(loom_onset)):
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
+            df_try.loc[loom_offset[i], 'esc_jump'] = 1
      
-        elif ((df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
-              (df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 0:
-            df_try.loc[loom_offset_fake[i], 'freeze'] = 1
+        elif ((df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
+              (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 0:
+            df_try.loc[loom_offset[i], 'freeze'] = 1
             
-        elif (df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
-            df_try.loc[loom_offset_fake[i], 'backwards'] = 1
+        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 0:
+            df_try.loc[loom_offset[i], 'backwards'] = 1
             
-        elif (df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Turn').sum() > 0:
-            df_try.loc[loom_offset_fake[i], 'esc_turn_wall'] = 1
+        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Turn').sum() > 0:
+            df_try.loc[loom_offset[i], 'esc_turn_wall'] = 1
             
-        elif (df_try.loc[loom_onset_fake[i]:(loom_offset_fake[i]+120), 'Charlie_Behavior'] == 'Floor_Turn').sum() > 0:
-            df_try.loc[loom_offset_fake[i], 'esc_turn_floor'] = 1        
+        elif (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Floor_Turn').sum() > 0:
+            df_try.loc[loom_offset[i], 'esc_turn_floor'] = 1        
         
         # Walk away check
         else:
             # Check pre-loom behavior (2 second before loom)
-            pre_loom_start = max(0, loom_onset_fake[i] - 120)
-            pre_loom_data = df_try.loc[pre_loom_start:loom_onset_fake[i]-1]
+            pre_loom_start = max(0, loom_onset[i] - 120)
+            pre_loom_data = df_try.loc[pre_loom_start:loom_onset[i]-1]
             
             # Check if fly was stationary or freezing before loom
             # Must be mostly Stationary/Freeze/Resistant_Freeze
@@ -1070,28 +1069,28 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
             
             if is_stationary_before:
                 # Check if starts walking within 2.5s (150 frames) after loom onset
-                post_loom_end = min(len(df_try)-1, loom_onset_fake[i] + 150)
-                post_loom_data = df_try.loc[loom_onset_fake[i]:post_loom_end]
+                post_loom_end = min(len(df_try)-1, loom_onset[i] + 150)
+                post_loom_data = df_try.loc[loom_onset[i]:post_loom_end]
                 walk_frames = post_loom_data[post_loom_data['Charlie_Behavior'] == 'Walk'].index.tolist()
                 
                 if len(walk_frames) >= 3:
-                    df_try.loc[loom_offset_fake[i], 'walk_away'] = 1  
+                    df_try.loc[loom_offset[i], 'walk_away'] = 1  
                 
                 
 #%% Walk Away Analysis Functions
 
-def identify_walk_away_trials(all_flies_data_with_fake_looms, pre_loom_window=120, 
+def identify_walk_away_trials(all_flies_data_with_looms, pre_loom_window=120, 
                                post_loom_window=150):
     """
     Extract walk away trials from already flagged data.
     """
     walk_away_trials = []
     
-    for fly_idx, (df_try, loom_onset_fake) in enumerate(all_flies_data_with_fake_looms):
+    for fly_idx, (df_try, loom_onset) in enumerate(all_flies_data_with_looms):
         # Get loom offsets
-        loom_offset_fake = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
         
-        for loom_idx, (onset, offset) in enumerate(zip(loom_onset_fake, loom_offset_fake)):
+        for loom_idx, (onset, offset) in enumerate(zip(loom_onset, loom_offset)):
             # Skip baseline looms
             if onset < baseline_frames:
                 continue
@@ -1326,8 +1325,8 @@ def plot_walk_away_distance_distribution(walk_away_trials, group_name, save_path
 
 # Identify walk away trials
 walk_away_trials = identify_walk_away_trials(
-    all_flies_data_with_fake_looms, 
-    pre_loom_window=120,  # 1 second before loom
+    all_flies_data_with_looms, 
+    pre_loom_window=60,  # 1 second before loom
     post_loom_window=150  # 2.5 seconds after loom
 )
 
