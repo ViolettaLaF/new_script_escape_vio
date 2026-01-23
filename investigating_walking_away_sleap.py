@@ -1326,7 +1326,7 @@ def plot_walk_away_distance_distribution(walk_away_trials, group_name, save_path
 # Identify walk away trials
 walk_away_trials = identify_walk_away_trials(
     all_flies_data_with_looms, 
-    pre_loom_window=60,  # 1 second before loom
+    pre_loom_window=120,  # 1 second before loom
     post_loom_window=150  # 2.5 seconds after loom
 )
 
