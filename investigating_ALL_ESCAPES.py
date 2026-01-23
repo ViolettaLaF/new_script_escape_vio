@@ -881,7 +881,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
         post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
         #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
-        for perm in range (1000): #to change here for 1000 
+        for perm in range (50):# (1000): #to change here for 1000 
             df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
@@ -1042,9 +1042,186 @@ def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path,
         print(f"{label}: {escape_counts[etype]} occurrences")
 
 
-# Call the function
-plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, 
-                          frames_before=120, frames_after=150, frame_rate=60)
+# Call the function! commented now just because I don't need it 
+#plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, frames_before=120, frames_after=150, frame_rate=60)
+#%%
+def analyze_escape_combinations(all_flies_data_with_looms, baseline_frames):
+    """
+    Analyze all possible combinations of escape responses.
+    Returns counts of pure and mixed escape responses.
+    """
+    # Define escape types (excluding freeze-only)
+    escape_columns = ['esc_jump', 'esc_run', 'backwards', 'esc_turn_wall', 'esc_turn_floor', 'walk_away', 'freeze']
+    escape_labels = ['Jump', 'Run', 'Backwards', 'Turn_Wall', 'Turn_Floor', 'Walk_Away', 'Freeze']
+    
+    # Dictionary to store all combinations and their counts
+    combination_counts = {}
+    total_looms = 0
+    no_response_count = 0
+    
+    for df_try, loom_onset in all_flies_data_with_looms:
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        
+        for i, offset in enumerate(loom_offset):
+            # Skip baseline looms
+            if i < len(loom_onset) and loom_onset[i] < baseline_frames:
+                continue
+            
+            total_looms += 1
+            
+            # Check which escapes occurred
+            active_escapes = []
+            for col, label in zip(escape_columns, escape_labels):
+                if df_try.loc[offset, col] == 1:
+                    active_escapes.append(label)
+            
+            # Create combination name
+            if len(active_escapes) == 0:
+                no_response_count += 1
+                combination_name = 'No_Response'
+            else:
+                # Sort alphabetically for consistency
+                combination_name = ' + '.join(sorted(active_escapes))
+            
+            # Count this combination
+            if combination_name in combination_counts:
+                combination_counts[combination_name] += 1
+            else:
+                combination_counts[combination_name] = 1
+    
+    return combination_counts, total_looms, no_response_count
+
+
+def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, save_path, baseline_frames):
+    """
+    Plot stacked bar showing all escape response combinations.
+    Pure responses and mixed responses are color-coded.
+    """
+    # Get combination counts
+    combination_counts, total_looms, no_response = analyze_escape_combinations(all_flies_data_with_looms, baseline_frames)
+    
+    # Remove No_Response from the plot (we'll show it separately)
+    if 'No_Response' in combination_counts:
+        del combination_counts['No_Response']
+    
+    # Separate pure vs mixed responses
+    pure_responses = {}
+    mixed_responses = {}
+    
+    for combo, count in combination_counts.items():
+        # Pure response = only one escape type (no '+' in name)
+        if '+' not in combo:
+            pure_responses[combo] = count
+        else:
+            mixed_responses[combo] = count
+    
+    # Sort by count (descending)
+    pure_responses = dict(sorted(pure_responses.items(), key=lambda x: x[1], reverse=True))
+    mixed_responses = dict(sorted(mixed_responses.items(), key=lambda x: x[1], reverse=True))
+    
+    # Combine for plotting (pure first, then mixed)
+    all_combinations = {**pure_responses, **mixed_responses}
+    
+    # Define colors for pure responses
+    pure_colors = {
+        'Jump': '#8756B2',
+        'Run': '#22C350',
+        'Backwards': '#FB6609',
+        'Turn_Wall': '#2297C3',
+        'Turn_Floor': '#206233',
+        'Walk_Away': '#F2D657',
+        'Freeze': '#7AD9F1'
+    }
+    
+    # Mixed responses get gray shades
+    mixed_color = '#808080'
+    
+    # Prepare data for plotting
+    labels = list(all_combinations.keys())
+    counts = list(all_combinations.values())
+    percentages = [(c/total_looms)*100 for c in counts]
+    
+    # Assign colors
+    colors = []
+    for label in labels:
+        if label in pure_colors:
+            colors.append(pure_colors[label])
+        else:
+            colors.append(mixed_color)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(16, 8))
+    
+    # Create stacked bar (horizontal for better label readability)
+    y_pos = 0
+    cumulative = 0
+    
+    for i, (label, count, pct, color) in enumerate(zip(labels, counts, percentages, colors)):
+        ax.barh(y_pos, count, left=cumulative, color=color, edgecolor='black', 
+               linewidth=0.5, label=label if i < 15 else '')  # Only label first 15 for legend
+        
+        # Add text label if segment is wide enough
+        if pct > 1:  # Only show label if >1%
+            ax.text(cumulative + count/2, y_pos, f'{label}\n{count}\n({pct:.1f}%)', 
+                   ha='center', va='center', fontsize=8, fontweight='bold')
+        
+        cumulative += count
+    
+    # Add no response info in title
+    no_response_pct = (no_response/total_looms)*100 if total_looms > 0 else 0
+    
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xlim(0, total_looms)
+    ax.set_xlabel('Number of Looms', fontsize=14)
+    ax.set_yticks([])
+    ax.set_title(f'{group_name} - Escape Response Combinations\n' + 
+                f'Total Looms: {total_looms} | With Response: {total_looms - no_response} ({100-no_response_pct:.1f}%) | ' +
+                f'No Response: {no_response} ({no_response_pct:.1f}%)', 
+                fontsize=14, pad=20)
+    
+    # Add vertical grid
+    ax.grid(axis='x', alpha=0.3)
+    ax.set_axisbelow(True)
+    
+    plt.tight_layout()
+    plt.savefig(save_path + '/' + experiment_name + '_escape_combinations_stacked.png', 
+                bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print detailed breakdown
+    print(f"\n{'='*60}")
+    print(f"ESCAPE RESPONSE ANALYSIS - {group_name}")
+    print(f"{'='*60}")
+    print(f"Total looms analyzed: {total_looms}")
+    print(f"No response: {no_response} ({no_response_pct:.1f}%)")
+    print(f"\n{'='*60}")
+    print("PURE RESPONSES:")
+    print(f"{'='*60}")
+    for combo, count in pure_responses.items():
+        pct = (count/total_looms)*100
+        print(f"{combo:20s}: {count:4d} ({pct:5.1f}%)")
+    
+    print(f"\n{'='*60}")
+    print("MIXED RESPONSES:")
+    print(f"{'='*60}")
+    for combo, count in mixed_responses.items():
+        pct = (count/total_looms)*100
+        print(f"{combo:40s}: {count:4d} ({pct:5.1f}%)")
+    
+    print(f"\n{'='*60}")
+    print(f"Total pure responses: {sum(pure_responses.values())} ({sum(pure_responses.values())/total_looms*100:.1f}%)")
+    print(f"Total mixed responses: {sum(mixed_responses.values())} ({sum(mixed_responses.values())/total_looms*100:.1f}%)")
+    
+    return all_combinations, pure_responses, mixed_responses
+
+
+# Usage:
+combinations, pure, mixed = plot_escape_combination_stacked_bar(
+    all_flies_data_with_looms, 
+    group1_label, 
+    plot_path,
+    baseline_frames
+)
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
