@@ -881,7 +881,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
         post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
         #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
-        for perm in range (50):# (1000): #to change here for 1000 
+        for perm in range (1000):# (1000): #to change here for 1000 
             df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
@@ -1222,6 +1222,212 @@ combinations, pure, mixed = plot_escape_combination_stacked_bar(
     plot_path,
     baseline_frames
 )
+#%%
+def analyze_escape_combinations_active_only(all_flies_data_with_looms, baseline_frames):
+    """
+    Analyze all possible combinations of ACTIVE escape responses.
+    Excludes freeze-only responses, but includes freeze in combinations.
+    """
+    # Define escape types
+    escape_columns = ['esc_jump', 'esc_run', 'backwards', 'esc_turn_wall', 'esc_turn_floor', 'walk_away', 'freeze']
+    escape_labels = ['Jump', 'Run', 'Backwards', 'Turn_Wall', 'Turn_Floor', 'Walk_Away', 'Freeze']
+    
+    # Dictionary to store all combinations and their counts
+    combination_counts = {}
+    total_looms = 0
+    no_response_count = 0
+    freeze_only_count = 0
+    
+    for df_try, loom_onset in all_flies_data_with_looms:
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        
+        for i, offset in enumerate(loom_offset):
+            # Skip baseline looms
+            if i < len(loom_onset) and loom_onset[i] < baseline_frames:
+                continue
+            
+            total_looms += 1
+            
+            # Check which escapes occurred
+            active_escapes = []
+            for col, label in zip(escape_columns, escape_labels):
+                if df_try.loc[offset, col] == 1:
+                    active_escapes.append(label)
+            
+            # Create combination name
+            if len(active_escapes) == 0:
+                no_response_count += 1
+                continue  # Don't count "no response"
+            elif active_escapes == ['Freeze']:
+                # Freeze only - exclude from plot but count separately
+                freeze_only_count += 1
+                continue
+            else:
+                # Sort alphabetically for consistency
+                combination_name = ' + '.join(sorted(active_escapes))
+                
+                # Count this combination
+                if combination_name in combination_counts:
+                    combination_counts[combination_name] += 1
+                else:
+                    combination_counts[combination_name] = 1
+    
+    return combination_counts, total_looms, no_response_count, freeze_only_count
+
+
+def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group_name, save_path, baseline_frames):
+    """
+    Plot stacked bar showing all ACTIVE escape response combinations.
+    Freeze-only responses are excluded but shown in summary.
+    """
+    # Get combination counts
+    combination_counts, total_looms, no_response, freeze_only = analyze_escape_combinations_active_only(
+        all_flies_data_with_looms, baseline_frames)
+    
+    # Separate pure vs mixed responses
+    pure_responses = {}
+    mixed_responses = {}
+    
+    for combo, count in combination_counts.items():
+        # Pure response = only one escape type (no '+' in name)
+        if '+' not in combo:
+            pure_responses[combo] = count
+        else:
+            mixed_responses[combo] = count
+    
+    # Sort by count (descending)
+    pure_responses = dict(sorted(pure_responses.items(), key=lambda x: x[1], reverse=True))
+    mixed_responses = dict(sorted(mixed_responses.items(), key=lambda x: x[1], reverse=True))
+    
+    # Combine for plotting (pure first, then mixed)
+    all_combinations = {**pure_responses, **mixed_responses}
+    
+    # Define colors for pure responses
+    pure_colors = {
+        'Jump': '#8756B2',
+        'Run': '#22C350',
+        'Backwards': '#FB6609',
+        'Turn_Wall': '#2297C3',
+        'Turn_Floor': '#206233',
+        'Walk_Away': '#F2D657',
+    }
+    
+    # Mixed responses get different gray shades based on number of behaviors
+    def get_mixed_color(label):
+        n_behaviors = label.count('+') + 1
+        # Darker gray for more complex combinations
+        gray_values = {2: '#A0A0A0', 3: '#808080', 4: '#606060', 5: '#404040'}
+        return gray_values.get(n_behaviors, '#404040')
+    
+    # Prepare data for plotting
+    labels = list(all_combinations.keys())
+    counts = list(all_combinations.values())
+    total_active = sum(counts)
+    percentages = [(c/total_active)*100 for c in counts]
+    
+    # Assign colors
+    colors = []
+    for label in labels:
+        if label in pure_colors:
+            colors.append(pure_colors[label])
+        else:
+            colors.append(get_mixed_color(label))
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(18, 8))
+    
+    # Create stacked bar (horizontal for better label readability)
+    y_pos = 0
+    cumulative = 0
+    
+    for i, (label, count, pct, color) in enumerate(zip(labels, counts, percentages, colors)):
+        ax.barh(y_pos, count, left=cumulative, color=color, edgecolor='black', 
+               linewidth=0.5)
+        
+        # Add text label if segment is wide enough
+        if pct > 2:  # Only show label if >2%
+            # Shorten label for display
+            display_label = label.replace('Turn_Wall', 'TW').replace('Turn_Floor', 'TF').replace('Walk_Away', 'WA')
+            ax.text(cumulative + count/2, y_pos, f'{display_label}\n{count}\n({pct:.1f}%)', 
+                   ha='center', va='center', fontsize=9, fontweight='bold',
+                   color='white' if pct > 5 else 'black')
+        elif pct > 0.5:  # Very small segments - just count
+            ax.text(cumulative + count/2, y_pos, f'{count}', 
+                   ha='center', va='center', fontsize=7)
+        
+        cumulative += count
+    
+    # Calculate percentages relative to total looms
+    active_pct = (total_active/total_looms)*100 if total_looms > 0 else 0
+    no_response_pct = (no_response/total_looms)*100 if total_looms > 0 else 0
+    freeze_only_pct = (freeze_only/total_looms)*100 if total_looms > 0 else 0
+    
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xlim(0, total_active * 1.02)  # Add 2% padding
+    ax.set_xlabel('Number of Looms', fontsize=14, fontweight='bold')
+    ax.set_yticks([])
+    ax.set_title(f'{group_name} - Active Escape Response Combinations\n' + 
+                f'Total Looms: {total_looms} | Active Escapes: {total_active} ({active_pct:.1f}%) | ' +
+                f'Freeze Only: {freeze_only} ({freeze_only_pct:.1f}%) | No Response: {no_response} ({no_response_pct:.1f}%)', 
+                fontsize=14, pad=20, fontweight='bold')
+    
+    # Add vertical grid
+    ax.grid(axis='x', alpha=0.3, linestyle='--')
+    ax.set_axisbelow(True)
+    
+    # Add legend for pure responses
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=color, edgecolor='black', label=label) 
+                      for label, color in pure_colors.items()]
+    legend_elements.append(Patch(facecolor='#808080', edgecolor='black', label='Mixed Responses'))
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=10, framealpha=0.9)
+    
+    plt.tight_layout()
+    plt.savefig(save_path + '/' + experiment_name + '_escape_combinations_active_only.png', 
+                bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print detailed breakdown
+    print(f"\n{'='*70}")
+    print(f"ACTIVE ESCAPE RESPONSE ANALYSIS - {group_name}")
+    print(f"{'='*70}")
+    print(f"Total looms analyzed: {total_looms}")
+    print(f"Active escapes: {total_active} ({active_pct:.1f}%)")
+    print(f"Freeze only: {freeze_only} ({freeze_only_pct:.1f}%) [EXCLUDED FROM PLOT]")
+    print(f"No response: {no_response} ({no_response_pct:.1f}%)")
+    
+    print(f"\n{'='*70}")
+    print("PURE ACTIVE RESPONSES:")
+    print(f"{'='*70}")
+    for combo, count in pure_responses.items():
+        pct_of_active = (count/total_active)*100
+        pct_of_total = (count/total_looms)*100
+        print(f"{combo:20s}: {count:4d} ({pct_of_active:5.1f}% of active, {pct_of_total:5.1f}% of total)")
+    
+    print(f"\n{'='*70}")
+    print("MIXED RESPONSES:")
+    print(f"{'='*70}")
+    for combo, count in mixed_responses.items():
+        pct_of_active = (count/total_active)*100
+        pct_of_total = (count/total_looms)*100
+        print(f"{combo:50s}: {count:4d} ({pct_of_active:5.1f}% of active, {pct_of_total:5.1f}% of total)")
+    
+    print(f"\n{'='*70}")
+    print(f"Total pure responses: {sum(pure_responses.values())} ({sum(pure_responses.values())/total_active*100:.1f}% of active)")
+    print(f"Total mixed responses: {sum(mixed_responses.values())} ({sum(mixed_responses.values())/total_active*100:.1f}% of active)")
+    
+    return all_combinations, pure_responses, mixed_responses
+
+
+# Usage for ACTIVE ONLY version (excludes freeze-only):
+combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(
+    all_flies_data_with_looms, 
+    group1_label, 
+    plot_path,
+    baseline_frames
+)
+
+
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
