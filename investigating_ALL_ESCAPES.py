@@ -947,14 +947,103 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
                 if len(walk_frames) >= 3:
                     df_try.loc[loom_offset[i], 'walk_away'] = 1  
 
-#%% 
-  
-            
+#%%             
 #    '''slicing dataframe from esc_turn until end''' #I'm commenting everything here as I don't need right now!!
 #    df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
 #    df_all = pd.concat([df_all,df_loom])
 
 #df_all = df_all.reset_index()
+#%% Plot Speed Profiles by Escape Type
+
+def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path, 
+                               frames_before=120, frames_after=120, frame_rate=60):
+    """
+    Plot speed profiles for different escape types.
+    """
+    escape_types = {
+        'esc_jump': 'Jump',
+        'esc_run': 'Run',
+        'freeze': 'Freeze',
+        'backwards': 'Backwards',
+        'esc_turn_wall': 'Turn (Wall)',
+        'esc_turn_floor': 'Turn (Floor)',
+        'walk_away': 'Walk Away'
+    }
+    
+    # Collect speed traces for each escape type
+    escape_traces = {etype: [] for etype in escape_types.keys()}
+    escape_counts = {etype: 0 for etype in escape_types.keys()}
+    
+    for df_try, loom_onset in all_flies_data_with_looms:
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        
+        for i, (onset, offset) in enumerate(zip(loom_onset, loom_offset)):
+            # Skip baseline looms
+            if onset < baseline_frames:
+                continue
+            
+            window_start = onset - frames_before
+            window_end = onset + frames_after
+            
+            if window_start >= 0 and window_end < len(df_try):
+                speed_trace = df_try.loc[window_start:window_end, 'Speed'].values
+                
+                # Check which escape type this loom has
+                for etype in escape_types.keys():
+                    if df_try.loc[offset, etype] == 1:
+                        escape_traces[etype].append(speed_trace)
+                        escape_counts[etype] += 1
+    
+    # Create subplots
+    fig, axes = plt.subplots(3, 3, figsize=(18, 14), sharex=True, sharey=True)
+    axes = axes.flatten()
+    
+    time_axis = np.arange(-frames_before, frames_after+1) / frame_rate
+    
+    for idx, (etype, label) in enumerate(escape_types.items()):
+        ax = axes[idx]
+        
+        if len(escape_traces[etype]) > 0:
+            traces = np.array(escape_traces[etype])
+            mean_speed = np.nanmean(traces, axis=0)
+            sem_speed = np.nanstd(traces, axis=0) / np.sqrt(len(traces))
+            
+            ax.plot(time_axis, mean_speed, linewidth=2, label=f'Mean (n={escape_counts[etype]})')
+            ax.fill_between(time_axis, mean_speed - sem_speed, mean_speed + sem_speed, alpha=0.3)
+        else:
+            ax.text(0.5, 0.5, f'No {label} escapes', 
+                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        
+        ax.axvline(x=0, color='black', linestyle='--', linewidth=2, alpha=0.7, label='Loom Onset')
+        ax.axvline(x=0.5, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='Loom Offset')
+        ax.set_title(f'{label} (n={escape_counts[etype]})', fontsize=12, fontweight='bold')
+        ax.legend(loc='upper right', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        
+        if idx >= 6:
+            ax.set_xlabel('Time (s)', fontsize=10)
+        if idx % 3 == 0:
+            ax.set_ylabel('Speed (mm/s)', fontsize=10)
+    
+    # Remove empty subplot
+    fig.delaxes(axes[7])
+    fig.delaxes(axes[8])
+    
+    plt.suptitle(f'{group_name} - Speed Profiles by Escape Type', fontsize=16, y=0.995)
+    plt.tight_layout(rect=[0, 0, 1, 0.99])
+    plt.savefig(save_path + '/' + experiment_name + '_escape_speed_profiles.png', 
+                bbox_inches='tight', dpi=300)
+    plt.show()
+    
+    # Print summary
+    print("\n=== Escape Type Summary ===")
+    for etype, label in escape_types.items():
+        print(f"{label}: {escape_counts[etype]} occurrences")
+
+
+# Call the function
+plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, 
+                          frames_before=120, frames_after=120, frame_rate=60)
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
