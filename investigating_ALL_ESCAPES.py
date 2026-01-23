@@ -763,7 +763,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 300 #300
+baseline  = 30 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -865,10 +865,10 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
     df_try['speed2d_smooth'] = df_try['speed2d_clean'].rolling(window=7, center=True, min_periods=1).mean() 
 #%% CALCULATE BASELINE STATISTICS (PER FLY)
-    baseline_walk_speed = df_try.loc[:baseline_frames, 'velocity_smooth'].dropna()
+    baseline_walk_speed = df_try.loc[:baseline_frames, 'walk_velocity_clean'].dropna()
     baseline_mean = baseline_walk_speed.mean()
     baseline_std = baseline_walk_speed.std()
-    speed_threshold = baseline_mean + baseline_std       
+    speed_threshold = baseline_mean + 0.5*baseline_std       
  #%% 
     '''checking all escapes - not mutually exclusive except walk away at the end of the gerarchy'''  
     for i in range(len(loom_onset)):
@@ -878,9 +878,10 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'velocity_smooth'] #velocities in the time window that goes from loom offset to 2 second after!        
         train_pre = []
         train_post = []
+        post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
         post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
-        #run 100 permutations of velocity per frame per loom(2 seconds before and after loom)
-        for perm in range (10): #to change here for 1000 
+        #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
+        for perm in range (1000): #to change here for 1000 
             df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
@@ -953,10 +954,10 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
 #    df_all = pd.concat([df_all,df_loom])
 
 #df_all = df_all.reset_index()
-#%% Plot Speed Profiles by Escape Type
+#%% Plot Speed Profiles by Escape Type (raw speed no binning data!!)
 
 def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path, 
-                               frames_before=120, frames_after=120, frame_rate=60):
+                               frames_before=120, frames_after=150, frame_rate=60):
     """
     Plot speed profiles for different escape types.
     """
@@ -971,8 +972,8 @@ def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path,
     }
     
     # Collect speed traces for each escape type
-    escape_traces = {etype: [] for etype in escape_types.keys()}
-    escape_counts = {etype: 0 for etype in escape_types.keys()}
+    escape_traces = {etype: [] for etype in escape_types.keys()} #will store speed arrays for each escape type
+    escape_counts = {etype: 0 for etype in escape_types.keys()} #will count how many of each escape
     
     for df_try, loom_onset in all_flies_data_with_looms:
         loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
@@ -1043,7 +1044,7 @@ def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path,
 
 # Call the function
 plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, 
-                          frames_before=120, frames_after=120, frame_rate=60)
+                          frames_before=120, frames_after=150, frame_rate=60)
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
