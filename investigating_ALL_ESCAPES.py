@@ -275,7 +275,7 @@ def simplify_behaviors(df_try):
     return df_try
  #%% ETOGRAMME COLLAPSING LOOM TOGETHER (YOU CAN SELECT THE n OF LOOM THAT YOU WANT AND THE SIZE OF THE WINDOW)
 def create_ethogram_data_aligned(all_flies_data_with_looms, variable, loom_indices, 
-                                 frames_before=60, frames_after=60, 
+                                 frames_before=120, frames_after=150, 
                                  filter_func=None):
     """
     Create ethogram data matrix with all looms aligned to common onset/offset.
@@ -337,7 +337,7 @@ def create_ethogram_data_aligned(all_flies_data_with_looms, variable, loom_indic
 
 
 def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_name,
-                                 frames_before=60, frames_after=60, frame_rate=60, 
+                                 frames_before=120, frames_after=150, frame_rate=60, 
                                  loom_duration_frames=30,
                                  cbar=True, figsize=None, save_path=None): #figsize=(10, 15)
     """
@@ -677,63 +677,25 @@ def sort_ethogram_simple(ethogram_data, sort_by='turn_count', frames_before=60,
 """
 # Example usage:
 # Step 1: Create filtered ethograms for all variables you want
-ethogram_charlie_behavior, metadata = create_ethogram_data_aligned(
-    all_flies_data_with_looms, 
-    variable='Charlie_Behavior',
-    loom_indices=list(range(20)),
-    frames_before=120,
-    frames_after=120,
-    filter_func=filter_turns_in_window  # Filtered!
-)
+ethogram_charlie_behavior, metadata = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior',loom_indices=list(range(20)), frames_before=120, frames_after=150, filter_func=filter_turns_in_window)
 
-ethogram_behavior, _ = create_ethogram_data_aligned(
-    all_flies_data_with_looms, 
-    variable='Behavior',
-    loom_indices=list(range(20)),
-    frames_before=120,
-    frames_after=120,
-    filter_func=filter_turns_in_window  # Same filter!
-)
+ethogram_behavior, _ = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Behavior', loom_indices=list(range(20)), frames_before=120, frames_after=120, filter_func=filter_turns_in_window  # Same filter!)
 
-ethogram_view, _ = create_ethogram_data_aligned(
-    all_flies_data_with_looms, 
-    variable='View',
-    loom_indices=list(range(20)),
-    frames_before=120,
-    frames_after=120,
-    filter_func=filter_turns_in_window  # Same filter!
-)
+ethogram_view, _ = create_ethogram_data_aligned(all_flies_data_with_looms, variable='View',loom_indices=list(range(20)), frames_before=120, frames_after=120, filter_func=filter_turns_in_window  # Same filter!)
 
 # Step 2: Sort the BEHAVIOR ethogram and get the sorting indices
-ethogram_sorted_charlie_behavior, sort_indices = sort_ethogram_simple(
-    ethogram_charlie_behavior, 
-    sort_by='turn_count',
-    frames_before=120,
-    loom_duration_frames=30
-)
+ethogram_sorted_charlie_behavior, sort_indices = sort_ethogram_simple(ethogram_charlie_behavior, sort_by='turn_count', frames_before=120, loom_duration_frames=30)
 
 # Step 3: Apply THE SAME sorting indices to ALL other variables
 ethogram_sorted_behavior = ethogram_behavior.iloc[sort_indices].reset_index(drop=True)
 ethogram_sorted_view = ethogram_view.iloc[sort_indices].reset_index(drop=True)
 
 # Step 4: Plot everything with the same sorting
-plot_ethogram_raster_aligned(
-    ethogram_sorted_charlie_behavior, metadata, 'Charlie_Behavior', group1_label,
-    120, 120, 60, 30,
-    save_path=plot_path + '/behavior_sorted_by_Turn.png'
-)
+plot_ethogram_raster_aligned(ethogram_sorted_charlie_behavior, metadata, 'Charlie_Behavior', group1_label, 120, 120, 60, 30, save_path=plot_path + '/behavior_sorted_by_Turn.png')
 
-plot_ethogram_raster_aligned(
-    ethogram_sorted_behavior, metadata, 'Behavior', group1_label,
-    120, 120, 60, 30,
-    save_path=plot_path + '/original_Behavior_sorted_by_Turn.png'
-)
+plot_ethogram_raster_aligned(ethogram_sorted_behavior, metadata, 'Behavior', group1_label, 120, 120, 60, 30, save_path=plot_path + '/original_Behavior_sorted_by_Turn.png')
 
-plot_ethogram_raster_aligned(
-    ethogram_sorted_view, metadata, 'View', group1_label,
-    120, 120, 60, 30,
-    save_path=plot_path + '/view_sorted_by_Turn.png'
-)
+plot_ethogram_raster_aligned(ethogram_sorted_view, metadata, 'View', group1_label, 120, 120, 60, 30, save_path=plot_path + '/view_sorted_by_Turn.png')
 
 """
 #%%
@@ -881,7 +843,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
         post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
         #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
-        for perm in range (1000):# (1000): #to change here for 1000 
+        for perm in range (50):# (1000): #to change here for 1000 
             df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
@@ -1216,12 +1178,7 @@ def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, s
 
 
 # Usage:
-combinations, pure, mixed = plot_escape_combination_stacked_bar(
-    all_flies_data_with_looms, 
-    group1_label, 
-    plot_path,
-    baseline_frames
-)
+combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 #%%
 def analyze_escape_combinations_active_only(all_flies_data_with_looms, baseline_frames):
     """
@@ -1420,14 +1377,7 @@ def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, g
 
 
 # Usage for ACTIVE ONLY version (excludes freeze-only):
-combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(
-    all_flies_data_with_looms, 
-    group1_label, 
-    plot_path,
-    baseline_frames
-)
-
-
+combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
