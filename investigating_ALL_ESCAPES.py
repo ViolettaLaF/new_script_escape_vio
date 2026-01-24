@@ -843,7 +843,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
         post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
         #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
-        for perm in range (50):# (1000): #to change here for 1000 
+        for perm in range (1000):# (1000): #to change here for 1000 
             df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
@@ -1178,7 +1178,7 @@ def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, s
 
 
 # Usage:
-combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
+#combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 #%%
 def analyze_escape_combinations_active_only(all_flies_data_with_looms, baseline_frames):
     """
@@ -1377,7 +1377,250 @@ def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, g
 
 
 # Usage for ACTIVE ONLY version (excludes freeze-only):
-combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
+#combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
+
+#%%
+def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames):
+    """
+    Add Run and Walk_Away as overlays on Charlie_Behavior.
+    Creates a new column 'Behavior_with_escapes' that includes Run and Walk_Away.
+    """
+    all_flies_updated = []
+    
+    for df_try, loom_onset in all_flies_data_with_looms:
+        df_updated = df_try.copy()
+        df_updated['Behavior_with_escapes'] = df_updated['Charlie_Behavior'].copy()
+        
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        
+        for i, (onset, offset) in enumerate(zip(loom_onset, loom_offset)):
+            if onset < baseline_frames:
+                continue
+            
+            window_start = onset
+            window_end = onset + 150 
+            
+            # RUN - mark as 'Run' during Walk bouts if esc_run = 1
+            if df_try.loc[offset, 'esc_run'] == 1:
+                window_data = df_try.loc[window_start:window_end]
+                walk_frames = window_data[window_data['Charlie_Behavior'] == 'Walk'].index
+                df_updated.loc[walk_frames, 'Behavior_with_escapes'] = 'Run'
+            
+            # WALK_AWAY - mark the specific walk bout that triggered it
+            if df_try.loc[offset, 'walk_away'] == 1:
+                post_loom_end = min(len(df_try)-1, onset + 150)
+                post_loom_data = df_try.loc[onset:post_loom_end]
+                walk_bouts = identify_behavior_bouts(post_loom_data, behavior_label='Walk')
+                
+                if len(walk_bouts) > 0:
+                    first_walk_bout = walk_bouts[0]
+                    walk_start = first_walk_bout['start']
+                    walk_end = min(first_walk_bout['end'], window_end)
+                    df_updated.loc[walk_start:walk_end, 'Behavior_with_escapes'] = 'Walk_Away'
+        
+        all_flies_updated.append((df_updated, loom_onset))
+    
+    return all_flies_updated
+
+
+def filter_active_escape_trials(all_flies_data_with_looms, baseline_frames):
+    """Filter to only include trials with active escapes (not freeze-only)."""
+    def filter_func(df_try, loom_start, window_start, window_end):
+        loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+        
+        matching_offset = None
+        for offset in loom_offset:
+            if offset > loom_start and offset < loom_start + 100:
+                matching_offset = offset
+                break
+        
+        if matching_offset is None:
+            return False
+        
+        has_jump = df_try.loc[matching_offset, 'esc_jump'] == 1
+        has_run = df_try.loc[matching_offset, 'esc_run'] == 1
+        has_backwards = df_try.loc[matching_offset, 'backwards'] == 1
+        has_turn_wall = df_try.loc[matching_offset, 'esc_turn_wall'] == 1
+        has_turn_floor = df_try.loc[matching_offset, 'esc_turn_floor'] == 1
+        has_walk_away = df_try.loc[matching_offset, 'walk_away'] == 1
+        
+        return (has_jump or has_run or has_backwards or has_turn_wall or 
+                has_turn_floor or has_walk_away)
+    
+    return filter_func
+
+
+def create_layered_behavior_column(all_flies_with_escapes):
+    """Create separate columns for background (Run) and foreground (other behaviors)."""
+    all_flies_layered = []
+    
+    for df_try, loom_onset in all_flies_with_escapes:
+        df_layered = df_try.copy()
+        
+        df_layered['Background_behavior'] = None
+        df_layered.loc[df_try['Behavior_with_escapes'] == 'Run', 'Background_behavior'] = 'Run'
+        
+        df_layered['Foreground_behavior'] = df_try['Behavior_with_escapes'].copy()
+        df_layered.loc[df_layered['Foreground_behavior'] == 'Run', 'Foreground_behavior'] = None
+        
+        all_flies_layered.append((df_layered, loom_onset))
+    
+    return all_flies_layered
+
+
+def sort_by_freeze_frames(ethogram_data, frames_before=120):
+    """Sort by number of Freeze frames from loom onset to 2s after."""
+    loom_onset_frame = frames_before
+    count_end = frames_before + 150
+    
+    freeze_counts = []
+    for idx, row in ethogram_data.iterrows():
+        freeze_count = ((row.iloc[loom_onset_frame:count_end] == 'Freeze') | 
+                       (row.iloc[loom_onset_frame:count_end] == 'Resistant_Freeze')).sum()
+        freeze_counts.append(freeze_count)
+    
+    sorted_indices = np.argsort(freeze_counts)[::-1]
+    return ethogram_data.iloc[sorted_indices].reset_index(drop=True), sorted_indices
+
+
+def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name,
+                                  frames_before=120, frames_after=150, frame_rate=60,
+                                  loom_duration_frames=30, save_path=None):
+    """Plot ethogram with Run in background and other behaviors in foreground."""
+    n_trials = len(ethogram_fg)
+    n_frames = len(ethogram_fg.columns)
+    
+    raster_width = 10
+    raster_height = n_trials * 0.05
+    raster_height = max(raster_height, 6)
+    raster_height = min(raster_height, 20)
+    
+    fig_width = raster_width + 4
+    fig_height = raster_height + 2
+    
+    fig = plt.figure(figsize=(fig_width, fig_height))
+    gs = gridspec.GridSpec(1, 2, figure=fig, width_ratios=[raster_width, 4], 
+                          wspace=0.3, left=0.1, right=0.95, top=0.93, bottom=0.1)
+    ax = fig.add_subplot(gs[0, 0])
+    
+    behaviour_colours = {
+        'Resistant_Freeze': '#2297C3',
+        'Freeze': '#7AD9F1',
+        'Stationary': '#F2D657',
+        'Walk': 'grey',
+        'Turn': '#22C350',
+        'Backwards_Walk': '#FB6609',
+        'Jump': '#8756B2',
+        'Floor_Turn': '#206233',
+        'Run':   '#DC143C',  #'#90EE90',
+        'Walk_Away': '#00CED1', #'#FFD700',
+    }
+    
+    unique_fg_behaviors = ethogram_fg.stack().unique()
+    unique_fg_behaviors = [b for b in unique_fg_behaviors if pd.notna(b)]
+    
+    fg_behavior_to_num = {beh: i+1 for i, beh in enumerate(sorted(set(unique_fg_behaviors)))}
+    fg_numeric = ethogram_fg.replace(fg_behavior_to_num)
+    
+    bg_numeric = ethogram_bg.replace({'Run': 1}).fillna(0)
+    
+    # Plot background
+    ax.imshow(bg_numeric.values, aspect='auto', 
+              cmap=mcolors.ListedColormap(['white', behaviour_colours['Run']]), 
+              vmin=0, vmax=1, interpolation='nearest', alpha=0.5)
+    
+    # Plot foreground
+    fg_cmap_colors = ['white'] + [behaviour_colours.get(b, '#808080') 
+                                   for b in sorted(set(unique_fg_behaviors))]
+    fg_cmap = mcolors.ListedColormap(fg_cmap_colors)
+    
+    ax.imshow(fg_numeric.values, aspect='auto', cmap=fg_cmap, 
+              vmin=0, vmax=len(fg_behavior_to_num), 
+              interpolation='nearest', alpha=1.0)
+    
+    # Loom lines
+    loom_onset_frame = frames_before
+    loom_offset_frame = frames_before + loom_duration_frames
+    
+    ax.axvline(x=loom_onset_frame, color='black', linewidth=1, linestyle='-', alpha=1, zorder=10)
+    ax.axvline(x=loom_offset_frame, color='black', linewidth=1, linestyle='-', alpha=1, zorder=10)
+    
+    #ax.text(loom_onset_frame, -1, 'Loom ON', ha='center', va='top', fontsize=12, fontweight='bold')
+    #ax.text(loom_offset_frame, -1, 'Loom OFF', ha='center', va='top', fontsize=12, fontweight='bold')
+    
+    # Axes
+    time_points = [-frames_before/frame_rate, 0, loom_duration_frames/frame_rate, frames_after/frame_rate]
+    frame_points = [0, loom_onset_frame, loom_offset_frame, frames_before + frames_after]
+    
+    ax.set_xticks(frame_points)
+    ax.set_xticklabels([f'{t:.1f}s' for t in time_points], fontsize=10)
+    ax.set_xlabel('Time relative to loom onset', fontsize=12)
+    ax.set_ylabel('Trial ID', fontsize=12)
+    
+    ax.yaxis.set_visible(True)
+    fly_ticks = np.arange(0, len(ethogram_fg), max(1, len(ethogram_fg)//20))
+    ax.set_yticks(fly_ticks + 0.5)
+    ax.set_yticklabels(fly_ticks, fontsize=8)
+    
+    # Title
+    n_flies = len(set(m['fly_idx'] for m in metadata))
+    title = f'{group_name} - Active Escapes (sorted by freeze)\n({n_trials} trials from {n_flies} flies)'
+    fig.suptitle(title, fontsize=14, y=0.98)
+    
+    # Legend
+    legend_ax = fig.add_subplot(gs[0, 1])
+    legend_ax.axis('off')
+    
+    all_behaviors = ['Run'] + sorted(set(unique_fg_behaviors))
+    legend_handles = []
+    
+    for beh in all_behaviors:
+        if beh == 'Run':
+            legend_handles.append(mpatches.Patch(facecolor=behaviour_colours[beh], 
+                                                edgecolor='black', alpha=0.5, label=f'{beh} (background)'))
+        else:
+            legend_handles.append(mpatches.Patch(facecolor=behaviour_colours.get(beh, '#808080'), 
+                                                edgecolor='black', label=beh))
+    
+    legend_ax.legend(handles=legend_handles, loc='center left', title='Behaviors', 
+                    fontsize=10, frameon=False)
+    
+    if save_path:
+        try:
+            import os
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
+            
+            if save_path.endswith('.jpeg') or save_path.endswith('.jpg'):
+                save_path = save_path.replace('.jpeg', '.png').replace('.jpg', '.png')
+            
+            plt.savefig(save_path, bbox_inches='tight', dpi=300, format='png')
+            print(f"Saved ethogram to: {save_path}")
+        except Exception as e:
+            print(f"Error saving figure: {e}")
+    
+    plt.show()
+
+
+all_flies_with_escapes = add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)
+
+all_flies_layered = create_layered_behavior_column(all_flies_with_escapes)
+
+active_escape_filter = filter_active_escape_trials(all_flies_data_with_looms, baseline_frames)
+
+loom_indices = list(range(20))
+
+ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', loom_indices, 120, 150, filter_func=active_escape_filter)
+
+ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', loom_indices, 120, 150, filter_func=active_escape_filter)
+
+# Step 5
+ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg, 150)
+ethogram_bg_sorted = ethogram_bg.iloc[sort_indices].reset_index(drop=True)
+
+# Step 6
+plot_ethogram_with_background(ethogram_bg_sorted, ethogram_fg_sorted, metadata, group1_label, save_path=plot_path + '/' + experiment_name + '_ethogram_layered_escapes.png')
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
 # for i in range(len(df_all)): 
