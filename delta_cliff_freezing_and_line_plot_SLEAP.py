@@ -54,8 +54,13 @@ def simplify_behaviors(df_try):
 #%%
 # Define all groups
 
-group_names  = ['luc_RNAi_TRIP-5minbase','luc_RNAi_TRIP-30secbase',
-                   'DH44_RNAi_TRIP-5minbase','DH44_RNAi_TRIP-30secbase'] # use the group names as present in each filename (need to be inside the filename)
+group_a = 'GFP_RNAi_KK-5minbase'
+group_b = 'GFP_RNAi_KK-30secbase'
+group_c = 'DH44_RNAi_KK-5minbase'
+group_d = 'DH44_RNAi_KK-30secbase'
+
+group_names  = [group_a,group_b,
+                   group_c,group_d] # use the group names as present in each filename (need to be inside the filename)
 number_of_groups = len(group_names)
 
 
@@ -107,8 +112,8 @@ for i in range(number_of_groups):
 
 #%% Analysis 1: comparison within same RNAi (so comparing directly different baseline lenght)       FREEZE
 multi_2group = dabest.load(df_freeze_all, idx=(
-                                         ('luc_RNAi_TRIP-5minbase','luc_RNAi_TRIP-30secbase'),
-                                         ('DH44_RNAi_TRIP-5minbase','DH44_RNAi_TRIP-30secbase'))) #copy and paste group_names 
+                                         (group_a,group_b),
+                                         (group_c,group_d))) #copy and paste group_names  
 
 # Plot and save figure
 fig1 = multi_2group.cliffs_delta.plot(
@@ -129,8 +134,8 @@ print(stats1)
 
 #%% Analysis 2: RNAi comparison within same baseline            FREEZE
 multi_2group_rnai = dabest.load(df_freeze_all, idx=(
-    ('luc_RNAi_TRIP-5minbase', 'DH44_RNAi_TRIP-5minbase'),
-    ('luc_RNAi_TRIP-30secbase','DH44_RNAi_TRIP-30secbase')))
+    (group_a, group_c),
+    (group_b,group_d)))
 
 # Plot and save figure
 fig2 = multi_2group_rnai.cliffs_delta.plot(
@@ -158,8 +163,8 @@ plt.show()
 
 #%% Analysis 1: comparison within same RNAi (so comparing directly different baseline lenght)       RESISTENT FREEZE 
 multi_2group_resist = dabest.load(df_resist_freeze_all, idx=(
-                                         ('luc_RNAi_TRIP-5minbase','luc_RNAi_TRIP-30secbase'),
-                                         ('DH44_RNAi_TRIP-5minbase','DH44_RNAi_TRIP-30secbase'))) #copy and paste group_names 
+                                         (group_a,group_b),
+                                         (group_c,group_d))) #copy and paste group_names  
 
 # Plot and save figure
 fig3 = multi_2group_resist.cliffs_delta.plot(
@@ -180,8 +185,8 @@ print(stats3)
 
 #%% Analysis 2: RNAi comparison within same baseline      RESISTENT FREEZE
 multi_2group_rnai_resist = dabest.load(df_resist_freeze_all, idx=(
-    ('luc_RNAi_TRIP-5minbase', 'DH44_RNAi_TRIP-5minbase'),
-    ('luc_RNAi_TRIP-30secbase','DH44_RNAi_TRIP-30secbase')))
+    (group_a, group_c),
+    (group_b,group_d)))
 
 # Plot and save figure
 fig4 = multi_2group_rnai_resist.cliffs_delta.plot(
