@@ -725,7 +725,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 30 #300
+baseline  = 300 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -827,24 +827,24 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
     df_try['speed2d_smooth'] = df_try['speed2d_clean'].rolling(window=7, center=True, min_periods=1).mean() 
 #%% CALCULATE BASELINE STATISTICS (PER FLY)
-    baseline_walk_speed = df_try.loc[:baseline_frames, 'walk_velocity_clean'].dropna()
-    baseline_mean = baseline_walk_speed.mean()
-    baseline_std = baseline_walk_speed.std()
-    speed_threshold = baseline_mean + 0.5*baseline_std       
+    #baseline_walk_speed = df_try.loc[:baseline_frames, 'walk_velocity_clean'].dropna()
+    #baseline_mean = baseline_walk_speed.mean()
+    #baseline_std = baseline_walk_speed.std()
+    #speed_threshold = baseline_mean + 0.5*baseline_std       
  #%% 
     '''checking all escapes - not mutually exclusive except walk away at the end of the gerarchy'''  
     for i in range(len(loom_onset)):
         
         '''run''' #This block is checking if flies significantly increase their walking speed after the looming stimulus. It does this with a bootstrapping approach (sampling random subsets of velocities before and after) and then applying a t-test. If the increase is real and not just noise, it marks that loom as an “escape run.”
-        permutated_pre = df_try.loc[loom_onset[i]-120:(loom_onset[i]), 'velocity_smooth'] #velocities in the time window that goes from 2 second before loom onset to loom onset! 
-        permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'velocity_smooth'] #velocities in the time window that goes from loom offset to 2 second after!        
+        permutated_pre = df_try.loc[loom_onset[i]-60:(loom_onset[i]), 'velocity_smooth'] #velocities in the time window that goes from 2 second before loom onset to loom onset! 
+        permutated_post = df_try.loc[loom_offset[i]:(loom_offset[i]+60), 'velocity_smooth'] #velocities in the time window that goes from loom offset to 2 second after!        
         train_pre = []
         train_post = []
-        post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+120), 'walk_velocity_clean']
-        post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
-        #run 1000 permutations of velocity per frame per loom(2 seconds before and after loom)
+        #post_loom_walk_velocity = df_try.loc[loom_offset[i]:(loom_offset[i]+60), 'walk_velocity_clean'] - commented because we don't want this condition anymore!
+        #post_loom_walk_velocity_mean = permutated_post.mean()   # Calculate mean of post-loom window
+        #run 1000 permutations of velocity per frame per loom(1 seconds before and after loom)
         for perm in range (1000):# (1000): #to change here for 1000 
-            df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 120 available
+            df_sample_pre  = permutated_pre.sample(n=30) #df_sample_pre grabs 30 random frames from the 60 available
             row_pre = df_sample_pre.mean(axis=0) #mean of 30 frames
             train_pre.append(row_pre)
         
@@ -854,24 +854,25 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         #post_loom_mean_speed = permutated_post.mean()    
         #take t-test of 100 samples between groups           
         t, p = ttest_ind(train_pre, train_post, alternative='less') #changed here from original script as in this case the one sided is better!!
-        if (p < 0.05) & (post_loom_walk_velocity_mean > speed_threshold):
+        #if (p < 0.05) & (post_loom_walk_velocity_mean > speed_threshold):
+        if (p < 0.05) :
             df_try.loc[loom_offset[i], 'esc_run'] = 1 #if t-test is significant, if yes --> 1        
                         
         '''checking jumps, freeze, backwards, turns'''        
-        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Jump').sum() > 0:
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Jump').sum() > 0:
             df_try.loc[loom_offset[i], 'esc_jump'] = 1
      
-        if ((df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Freeze') | 
-              (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 2:
+        if ((df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Freeze') | 
+              (df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Resistant_Freeze')).sum() > 2:
             df_try.loc[loom_offset[i], 'freeze'] = 1
             
-        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 2:
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Backwards_Walk').sum() > 2:
             df_try.loc[loom_offset[i], 'backwards'] = 1
             
-        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Turn').sum() > 2:
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Turn').sum() > 2:
             df_try.loc[loom_offset[i], 'esc_turn_wall'] = 1
             
-        if (df_try.loc[loom_onset[i]:(loom_offset[i]+120), 'Charlie_Behavior'] == 'Floor_Turn').sum() > 2:
+        if (df_try.loc[loom_onset[i]:(loom_offset[i]+60), 'Charlie_Behavior'] == 'Floor_Turn').sum() > 2:
             df_try.loc[loom_offset[i], 'esc_turn_floor'] = 1        
         
         "Walk away - ONLY if no other escape happened" 
@@ -885,7 +886,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
         
         if not has_other_escape:
             # Check pre-loom behavior (2 second before loom)
-            pre_loom_start = max(0, loom_onset[i] - 120)
+            pre_loom_start = max(0, loom_onset[i] - 60)
             pre_loom_data = df_try.loc[pre_loom_start:loom_onset[i]-1]
         
             # Check if fly was stationary or freezing before loom
@@ -919,7 +920,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
 #%% Plot Speed Profiles by Escape Type (raw speed no binning data!!)
 
 def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path, 
-                               frames_before=120, frames_after=150, frame_rate=60):
+                               frames_before=60, frames_after=90, frame_rate=60):
     """
     Plot speed profiles for different escape types.
     """
@@ -1005,7 +1006,7 @@ def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path,
 
 
 # Call the function! commented now just because I don't need it 
-#plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, frames_before=120, frames_after=150, frame_rate=60)
+plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path, frames_before=60, frames_after=90, frame_rate=60)
 #%%
 def analyze_escape_combinations(all_flies_data_with_looms, baseline_frames):
     """
@@ -1178,7 +1179,7 @@ def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, s
 
 
 # Usage:
-#combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
+combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 #%%
 def analyze_escape_combinations_active_only(all_flies_data_with_looms, baseline_frames):
     """
@@ -1377,13 +1378,14 @@ def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, g
 
 
 # Usage for ACTIVE ONLY version (excludes freeze-only):
-#combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
+combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 
 #%%
 def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames):
     """
     Add Run and Walk_Away as overlays on Charlie_Behavior.
     Creates a new column 'Behavior_with_escapes' that includes Run and Walk_Away.
+    Both use the same window: from loom offset to offset + 60 frames (1 second).
     """
     all_flies_updated = []
     
@@ -1397,8 +1399,9 @@ def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)
             if onset < baseline_frames:
                 continue
             
-            window_start = onset
-            window_end = onset + 150 
+            # Define window from loom OFFSET (same for both Run and Walk_Away)
+            window_start = offset
+            window_end = offset + 60  # 1 second after loom offset
             
             # RUN - mark as 'Run' during Walk bouts if esc_run = 1
             if df_try.loc[offset, 'esc_run'] == 1:
@@ -1406,16 +1409,16 @@ def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)
                 walk_frames = window_data[window_data['Charlie_Behavior'] == 'Walk'].index
                 df_updated.loc[walk_frames, 'Behavior_with_escapes'] = 'Run'
             
-            # WALK_AWAY - mark the specific walk bout that triggered it
+            # WALK_AWAY - mark the specific walk bout that triggered it (SAME WINDOW)
             if df_try.loc[offset, 'walk_away'] == 1:
-                post_loom_end = min(len(df_try)-1, onset + 150)
-                post_loom_data = df_try.loc[onset:post_loom_end]
-                walk_bouts = identify_behavior_bouts(post_loom_data, behavior_label='Walk')
+                # Use the SAME window as Run
+                window_data = df_try.loc[window_start:window_end]
+                walk_bouts = identify_behavior_bouts(window_data, behavior_label='Walk')
                 
                 if len(walk_bouts) > 0:
                     first_walk_bout = walk_bouts[0]
                     walk_start = first_walk_bout['start']
-                    walk_end = min(first_walk_bout['end'], window_end)
+                    walk_end = first_walk_bout['end']
                     df_updated.loc[walk_start:walk_end, 'Behavior_with_escapes'] = 'Walk_Away'
         
         all_flies_updated.append((df_updated, loom_onset))
@@ -1468,10 +1471,10 @@ def create_layered_behavior_column(all_flies_with_escapes):
     return all_flies_layered
 
 
-def sort_by_freeze_frames(ethogram_data, frames_before=120):
-    """Sort by number of Freeze frames from loom onset to 2s after."""
+def sort_by_freeze_frames(ethogram_data, frames_before=60):
+    """Sort by number of Freeze frames from loom onset to 1s after."""
     loom_onset_frame = frames_before
-    count_end = frames_before + 150
+    count_end = frames_before + 90
     
     freeze_counts = []
     for idx, row in ethogram_data.iterrows():
@@ -1484,7 +1487,7 @@ def sort_by_freeze_frames(ethogram_data, frames_before=120):
 
 
 def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name,
-                                  frames_before=120, frames_after=150, frame_rate=60,
+                                  frames_before=60, frames_after=90, frame_rate=60,
                                   loom_duration_frames=30, save_path=None):
     """Plot ethogram with Run in background and other behaviors in foreground."""
     n_trials = len(ethogram_fg)
@@ -1545,8 +1548,6 @@ def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name
     ax.axvline(x=loom_onset_frame, color='black', linewidth=1, linestyle='-', alpha=1, zorder=10)
     ax.axvline(x=loom_offset_frame, color='black', linewidth=1, linestyle='-', alpha=1, zorder=10)
     
-    #ax.text(loom_onset_frame, -1, 'Loom ON', ha='center', va='top', fontsize=12, fontweight='bold')
-    #ax.text(loom_offset_frame, -1, 'Loom OFF', ha='center', va='top', fontsize=12, fontweight='bold')
     
     # Axes
     time_points = [-frames_before/frame_rate, 0, loom_duration_frames/frame_rate, frames_after/frame_rate]
@@ -1611,12 +1612,12 @@ active_escape_filter = filter_active_escape_trials(all_flies_data_with_looms, ba
 
 loom_indices = list(range(20))
 
-ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', loom_indices, 120, 150, filter_func=active_escape_filter)
+ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', loom_indices, 60, 90, filter_func=active_escape_filter)
 
-ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', loom_indices, 120, 150, filter_func=active_escape_filter)
+ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', loom_indices, 60, 90, filter_func=active_escape_filter)
 
 # Step 5
-ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg, 150)
+ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg, 90)
 ethogram_bg_sorted = ethogram_bg.iloc[sort_indices].reset_index(drop=True)
 
 # Step 6
