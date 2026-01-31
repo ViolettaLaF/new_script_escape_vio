@@ -808,7 +808,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 300 #300
+baseline  = 30 #300
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -1479,8 +1479,7 @@ combinations_active, pure_active, mixed_active = plot_escape_combination_stacked
 # ============================================================================
 # SMART SOLUTION: FILTER THE COMBINED ETHOGRAM BY ESCAPE TYPE
 # ============================================================================
-# You're right - we already have the combined ethogram working with colors!
-# Just filter it by escape type instead of recreating everything.
+#we already have the combined ethogram working with colors! Just filter it by escape type instead of recreating everything.
 
 def create_individual_ethograms_from_combined(all_flies_data, group_name, save_path, 
                                               baseline_frames, loom_indices=list(range(20)),
@@ -1699,7 +1698,7 @@ def create_layered_behavior_column(all_flies_with_escapes):
 
 
 def sort_by_freeze_frames(ethogram_data, frames_before=60):
-    """Sort by number of Freeze frames from loom onset to 1s after."""
+    """Sort by number of Freeze frames from loom onset to 1.5s after.""" #frames before is very confusingand is linked just with the fact on where is the loom in the etogramme. If you don't change window of etograme just don't put any parameter and is ok. will sort from loom onset to 90 frames after 
     loom_onset_frame = frames_before
     count_end = frames_before + 90
     
@@ -1829,27 +1828,6 @@ def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name
             print(f"Error saving figure: {e}")
     
     plt.show()
-
-
-all_flies_with_escapes = add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)
-
-all_flies_layered = create_layered_behavior_column(all_flies_with_escapes)
-
-active_escape_filter = filter_active_escape_trials(all_flies_data_with_looms, baseline_frames)
-
-loom_indices = list(range(20))
-
-ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', loom_indices, 60, 90, filter_func=active_escape_filter)
-
-ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', loom_indices, 60, 90, filter_func=active_escape_filter)
-
-# Step 5
-ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg, 90)
-ethogram_bg_sorted = ethogram_bg.iloc[sort_indices].reset_index(drop=True)
-
-# Step 6
-plot_ethogram_with_background(ethogram_bg_sorted, ethogram_fg_sorted, metadata, group1_label, save_path=plot_path + '/' + experiment_name + '_ethogram_layered_escapes.png')
-
 #%%
 def create_escape_specific_filter(escape_type):
     """
@@ -1913,93 +1891,6 @@ def create_no_response_filter(baseline_frames):
     return filter_func
 
 
-def plot_all_escape_ethograms(all_flies_data, group_name, save_path, baseline_frames,
-                              loom_indices=list(range(20)), frames_before=60, 
-                              frames_after=90, frame_rate=60, loom_duration_frames=30):
-    """
-    Create individual ethograms for each escape type, all sorted by freeze.
-    Also creates a no-response ethogram.
-    """
-    escape_types = {
-        'esc_jump': 'Jump',
-        'esc_run': 'Run',
-        'freeze': 'Freeze',
-        'backwards': 'Backwards',
-        'esc_turn_wall': 'Turn (Wall)',
-        'esc_turn_floor': 'Turn (Floor)',
-        'walk_away': 'Walk Away'
-    }
-    
-    print(f"\n{'='*70}")
-    print(f"Creating individual ethograms for {group_name}")
-    print(f"{'='*70}\n")
-    
-    # Process each escape type
-    for escape_key, escape_label in escape_types.items():
-        print(f"Processing {escape_label}...")
-        
-        # Create filter for this escape type
-        escape_filter = create_escape_specific_filter(escape_key)
-        
-        # Create ethogram data
-        ethogram_data, metadata = create_ethogram_data_aligned(
-            all_flies_data,
-            variable='Charlie_Behavior',
-            loom_indices=loom_indices,
-            frames_before=frames_before,
-            frames_after=frames_after,
-            filter_func=escape_filter
-        )
-        
-        if len(ethogram_data) == 0:
-            print(f"  No trials found for {escape_label}, skipping...")
-            continue
-        
-        # Sort by freeze
-        ethogram_sorted, sort_indices = sort_by_freeze_frames(
-            ethogram_data, frames_before=frames_before
-        )
-        
-        # Plot
-        save_file = f"{save_path}/{group_name}_ethogram_{escape_key}_sorted.png"
-        plot_ethogram_raster_aligned(
-            ethogram_sorted, metadata, 'Charlie_Behavior', 
-            f'{group_name} - {escape_label}',
-            frames_before, frames_after, frame_rate, loom_duration_frames,
-            save_path=save_file
-        )
-        
-        print(f"  ✓ Created ethogram with {len(ethogram_data)} trials")
-    
-    # Also create NO RESPONSE ethogram
-    print(f"\nProcessing No Response trials...")
-    no_response_filter = create_no_response_filter(baseline_frames)
-    
-    ethogram_no_response, metadata_no_response = create_ethogram_data_aligned(
-        all_flies_data,
-        variable='Charlie_Behavior',
-        loom_indices=loom_indices,
-        frames_before=frames_before,
-        frames_after=frames_after,
-        filter_func=no_response_filter
-    )
-    
-    if len(ethogram_no_response) > 0:
-        save_file = f"{save_path}/{group_name}_ethogram_no_response.png"
-        plot_ethogram_raster_aligned(
-            ethogram_no_response, metadata_no_response, 'Charlie_Behavior',
-            f'{group_name} - No Response',
-            frames_before, frames_after, frame_rate, loom_duration_frames,
-            save_path=save_file
-        )
-        print(f"  ✓ Created no-response ethogram with {len(ethogram_no_response)} trials")
-    else:
-        print(f"  No no-response trials found")
-    
-    print(f"\n{'='*70}")
-    print("All ethograms created!")
-    print(f"{'='*70}\n")
-
 
 def plot_no_response_speed_profile(all_flies_data, group_name, save_path, baseline_frames,
                                    frames_before=60, frames_after=90, frame_rate=60):
@@ -2046,10 +1937,9 @@ def plot_no_response_speed_profile(all_flies_data, group_name, save_path, baseli
     mean_speed = np.nanmean(traces, axis=0)
     sem_speed = np.nanstd(traces, axis=0) / np.sqrt(len(traces))
     
-    ax.plot(time_axis, mean_speed, linewidth=2, color='gray', 
-            label=f'Mean (n={len(no_response_traces)})')
+    ax.plot(time_axis, mean_speed, linewidth=2, label=f'Mean (n={len(no_response_traces)})')
     ax.fill_between(time_axis, mean_speed - sem_speed, mean_speed + sem_speed, 
-                    alpha=0.3, color='gray')
+                    alpha=0.3)
     
     ax.axvline(x=0, color='black', linestyle='--', linewidth=2, alpha=0.7, 
               label='Loom Onset')
@@ -2070,168 +1960,24 @@ def plot_no_response_speed_profile(all_flies_data, group_name, save_path, baseli
     
     print(f"Created no-response speed profile with {len(no_response_traces)} trials")
 
-def create_individual_ethograms_with_run_walkaway(all_flies_data, group_name, save_path, 
-                                                   baseline_frames, loom_indices=list(range(20)),
-                                                   frames_before=60, frames_after=90, 
-                                                   frame_rate=60, loom_duration_frames=30):
-    """
-    Create individual ethograms for each escape type WITH Run and Walk_Away shown.
-    """
-    
-    # First, add Run and Walk_Away to behavior column
-    all_flies_with_escapes = add_run_and_walkaway_to_behavior(all_flies_data, baseline_frames)
-    
-    escape_types = {
-        'esc_jump': 'Jump',
-        'esc_run': 'Run',
-        'freeze': 'Freeze',
-        'backwards': 'Backwards',
-        'esc_turn_wall': 'Turn (Wall)',
-        'esc_turn_floor': 'Turn (Floor)',
-        'walk_away': 'Walk Away'
-    }
-    
-    print(f"\n{'='*70}")
-    print(f"Creating individual ethograms with Run/Walk_Away colors for {group_name}")
-    print(f"{'='*70}\n")
-    
-    # Process each escape type
-    for escape_key, escape_label in escape_types.items():
-        print(f"Processing {escape_label}...")
-        
-        # Create filter for this escape type
-        escape_filter = create_escape_specific_filter(escape_key)
-        
-        # Create ethogram data using 'Behavior_with_escapes' instead of 'Charlie_Behavior'
-        ethogram_data, metadata = create_ethogram_data_aligned(
-            all_flies_with_escapes,
-            variable='Behavior_with_escapes',  # <-- CHANGED THIS!
-            loom_indices=loom_indices,
-            frames_before=frames_before,
-            frames_after=frames_after,
-            filter_func=escape_filter
-        )
-        
-        if len(ethogram_data) == 0:
-            print(f"  No trials found for {escape_label}, skipping...")
-            continue
-        
-        # Sort by freeze
-        ethogram_sorted, sort_indices = sort_by_freeze_frames(
-            ethogram_data, frames_before=frames_before
-        )
-        
-        # Plot
-        save_file = f"{save_path}/{group_name}_ethogram_{escape_key}_sorted.png"
-        plot_ethogram_raster_aligned(
-            ethogram_sorted, metadata, 'Behavior_with_escapes',  # <-- CHANGED THIS!
-            f'{group_name} - {escape_label}',
-            frames_before, frames_after, frame_rate, loom_duration_frames,
-            save_path=save_file
-        )
-        
-        print(f"  ✓ Created ethogram with {len(ethogram_data)} trials")
-    
-    # Also create NO RESPONSE ethogram
-    print(f"\nProcessing No Response trials...")
-    no_response_filter = create_no_response_filter(baseline_frames)
-    
-    ethogram_no_response, metadata_no_response = create_ethogram_data_aligned(
-        all_flies_with_escapes,
-        variable='Behavior_with_escapes',  # <-- CHANGED THIS!
-        loom_indices=loom_indices,
-        frames_before=frames_before,
-        frames_after=frames_after,
-        filter_func=no_response_filter
-    )
-    
-    if len(ethogram_no_response) > 0:
-        save_file = f"{save_path}/{group_name}_ethogram_no_response.png"
-        plot_ethogram_raster_aligned(
-            ethogram_no_response, metadata_no_response, 'Behavior_with_escapes',  # <-- CHANGED THIS!
-            f'{group_name} - No Response',
-            frames_before, frames_after, frame_rate, loom_duration_frames,
-            save_path=save_file
-        )
-        print(f"  ✓ Created no-response ethogram with {len(ethogram_no_response)} trials")
-    else:
-        print(f"  No no-response trials found")
-    
-    print(f"\n{'='*70}")
-    print("All ethograms created with Run/Walk_Away colors!")
-    print(f"{'='*70}\n")
 #%% CREATE INDIVIDUAL ETHOGRAMS (SMART WAY - REUSE COMBINED ETHOGRAM LOGIC!)
-create_individual_ethograms_from_combined(
-    all_flies_data_with_looms,
-    group_name=group1_label,
-    save_path=plot_path,
-    baseline_frames=baseline_frames,
-    loom_indices=list(range(20)),
-    frames_before=60,
-    frames_after=90,
-    frame_rate=60,
-    loom_duration_frames=30
-)
-#%% NO-RESPONSE SPEED PROFILE
-plot_no_response_speed_profile(
-    all_flies_data_with_looms,
-    group_name=group1_label,
-    save_path=plot_path,
-    baseline_frames=baseline_frames,
-    frames_before=60,
-    frames_after=90,
-    frame_rate=60
-)
-
-# Step 4: Still create the combined active escapes ethogram
+create_individual_ethograms_from_combined(all_flies_data_with_looms, group_name=group1_label, save_path=plot_path, baseline_frames=baseline_frames, loom_indices=list(range(20)), frames_before=60, frames_after=90, frame_rate=60, loom_duration_frames=30)
+#%% 
+#  Still create the combined active escapes ethogram
 all_flies_with_escapes = add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)  # CHANGED!
 all_flies_layered = create_layered_behavior_column(all_flies_with_escapes)
 active_escape_filter = filter_active_escape_trials(all_flies_data_with_looms, baseline_frames)  # CHANGED!
 
-ethogram_bg, metadata = create_ethogram_data_aligned(
-    all_flies_layered, 'Background_behavior', list(range(20)), 60, 90, 
-    filter_func=active_escape_filter
-)
-ethogram_fg, _ = create_ethogram_data_aligned(
-    all_flies_layered, 'Foreground_behavior', list(range(20)), 60, 90, 
-    filter_func=active_escape_filter
-)
+ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', list(range(20)), 60, 90, filter_func=active_escape_filter)
+ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', list(range(20)), 60, 90, filter_func=active_escape_filter)
 
-ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg, 60)
+ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg)
 ethogram_bg_sorted = ethogram_bg.iloc[sort_indices].reset_index(drop=True)
 
-plot_ethogram_with_background(
-    ethogram_bg_sorted, ethogram_fg_sorted, metadata, group1_label, 
-    save_path=plot_path + '/' + experiment_name + '_ethogram_layered_escapes.png'
-)
+plot_ethogram_with_background(ethogram_bg_sorted, ethogram_fg_sorted, metadata, group1_label, save_path=plot_path + '/' + experiment_name + '_ethogram_layered_escapes.png')
 
-# Step 5: Create the combination analysis plots (these still work!)
-combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(
-    all_flies_data_with_looms, group1_label, plot_path, baseline_frames)  # CHANGED!
-
-# Step 6: NEW plots for individual escape ethograms
-#plot_all_escape_ethograms(
-#    all_flies_data_with_looms,  # CHANGED!
-#    group_name=group1_label,
-#    save_path=plot_path,
-#    baseline_frames=baseline_frames,
-#    loom_indices=list(range(20)),
-#    frames_before=60,
-#    frames_after=90,
-#    frame_rate=60,
-#    loom_duration_frames=30
-#)
-
-# Step 7: NEW no-response speed profile
-plot_no_response_speed_profile(
-    all_flies_data_with_looms,  # CHANGED!
-    group_name=group1_label,
-    save_path=plot_path,
-    baseline_frames=baseline_frames,
-    frames_before=60,
-    frames_after=90,
-    frame_rate=60
-)
+#no-response speed profile
+plot_no_response_speed_profile(all_flies_data_with_looms, group_name=group1_label, save_path=plot_path, baseline_frames=baseline_frames, frames_before=60, frames_after=90, frame_rate=60)
 
 #%%
 '''#removing this here because at the moment I don't want behaviours to be mutally excluding!
