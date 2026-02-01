@@ -795,6 +795,13 @@ plot_path_pdf = exp_path + '/plots_pdf'
 plot_path_escape_plots = exp_path + '/plots/escape_plots'
 plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
 
+# ADD THIS - Create directories if they don't exist
+os.makedirs(plot_path, exist_ok=True)
+os.makedirs(plot_path_pdf, exist_ok=True)
+os.makedirs(plot_path_escape_plots, exist_ok=True)
+os.makedirs(plot_path_pdf_escape_plots, exist_ok=True)
+
+
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 experiment_name = 'VLF-39347' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
 group1_label = 'VLF-39347'
@@ -808,7 +815,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 30 #300
+baseline  = 300 #30
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -877,7 +884,6 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try = simplify_behaviors(df_try) #simplify Matheus original behaviour (they are too many, impossible to understand anything)   
     # NEW LINE - Remove entire bouts that overlap with jumps
     df_try = remove_turn_backwards_bouts_overlapping_with_jumps(df_try)    
-    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
     #all_flies_data_with_fake_looms.append((df_try, loom_onset_fake))  # Store as tuple of (dataframe, loom_onsets) 
 #%%   
     df_try['esc_turn_wall'] = 0
@@ -889,7 +895,9 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
     df_try['escape'] = 0 #containing all form of escape: esc_turn, esc_run, esc_jump, backwards, 'walk_away'
     df_try['freeze'] = 0 # this before was called 'esc_freeze' contain freeze and resistent freeze
     df_try['walk_speed'] = np.nan
+    df_try['mix_responses'] = np.nan #has looms where the flies escapes and freeze 
     df_try['speed2d'] = np.nan
+
       
     df_try.loc[(df_try['Charlie_Behavior'] == 'Walk'), 'walk_speed'] = df_try['Speed'] #walking velocity
     df_try.loc[(df_try['Speed'] < jump_velocity), 'speed2d'] = df_try['Speed'] #velocity excluding jump speed     
@@ -950,7 +958,7 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
                 train_pre = []
                 train_post = []
                 
-                for perm in range(1000): #change here to 1k!!
+                for perm in range(1000): #change here to 1000!!
                     n_samples_pre = min(30, len(permutated_pre.dropna()))
                     n_samples_post = min(30, len(permutated_post.dropna()))
                     
@@ -985,13 +993,142 @@ for filename in sorted(os.listdir(path+'/control_RNAi/')): #NB. to change here w
                 
                 if pre_is_stationary_freeze and post_dominant == 'Walk':
                     df_try.loc[loom_offset[i], 'walk_away'] = 1  
+    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
+#%%
+for df_try, loom_onset in all_flies_data_with_looms:
+    loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
+    
+    # Extract escape data for each loom offset
+    df_loom = df_try.loc[loom_offset, ['esc_turn_wall', 'esc_turn_floor', 'esc_run', 
+                                        'esc_jump', 'backwards', 'walk_away', 'freeze']].copy()
+    df_loom = df_loom.reset_index(drop=True)
+    
+    df_all = pd.concat([df_all, df_loom])
 
-#%%             
-#    '''slicing dataframe from esc_turn until end''' #I'm commenting everything here as I don't need right now!!
-#    df_loom = df_try.loc[loom_offset, 'esc_turn':].copy().reset_index(drop=True)
-#    df_all = pd.concat([df_all,df_loom])
+df_all = df_all.reset_index(drop=True)
 
-#df_all = df_all.reset_index()
+#%% CREATE MUTUALLY EXCLUSIVE CATEGORIES
+
+# Step 1: Calculate basic indicators
+escape_cols = ['esc_turn_wall', 'esc_turn_floor', 'esc_run', 'esc_jump', 'backwards', 'walk_away']
+has_escape = (df_all[escape_cols].sum(axis=1) > 0).astype(int)
+has_freeze = df_all['freeze']
+
+# Step 2: Create MUTUALLY EXCLUSIVE categories
+df_all['mix_responses'] = ((has_escape == 1) & (has_freeze == 1)).astype(int)
+df_all['escape_only'] = ((has_escape == 1) & (has_freeze == 0)).astype(int)
+df_all['freeze_only'] = ((has_escape == 0) & (has_freeze == 1)).astype(int)
+df_all['esc_none'] = ((has_escape == 0) & (has_freeze == 0)).astype(int)
+
+# Verification
+df_all['check_sum'] = (df_all['mix_responses'] + df_all['escape_only'] + 
+                       df_all['freeze_only'] + df_all['esc_none'])
+print(f"Check: All sums = 1? {(df_all['check_sum'] == 1).all()}")
+
+# Add loom index
+df_all['loom_index'] = df_all.index % 20
+
+#%% GROUP BY LOOM AND CALCULATE FRACTIONS
+
+df_grouped = df_all.groupby('loom_index').mean()
+df_grouped['loom'] = range(len(df_grouped))
+
+# Verify fractions sum to 1
+df_grouped['fraction_sum'] = (df_grouped['mix_responses'] + df_grouped['escape_only'] + 
+                              df_grouped['freeze_only'] + df_grouped['esc_none'])
+print(f"\nAll fractions sum to 1.0? {np.allclose(df_grouped['fraction_sum'], 1.0)}")
+
+#%% UPDATED PLOTTING FUNCTION
+
+def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
+    """
+    Plot escape responses across looms.
+    
+    Lines:
+    - Freeze only (freeze without escape)
+    - Mix responses (escape + freeze)
+    - Non-responders (no escape, no freeze)
+    - Escapes (any active escape)
+    """
+    
+    plt.figure(figsize=(10, 6))
+    
+
+    
+    # Plot lines
+    ax = sns.lineplot(x='loom', y='freeze_only', data=df_grouped, 
+                     label='Freeze', color='darkcyan')
+    ax = sns.lineplot(x='loom', y='mix_responses', data=df_grouped, 
+                     label='Mix responses', color='purple')
+    ax = sns.lineplot(x='loom', y='escape_only', data=df_grouped, 
+                     label='Escapes', color='tomato')
+    ax = sns.lineplot(x='loom', y='esc_none', data=df_grouped, 
+                     label='Others', color='lightgrey')
+    
+    # Add scatter points
+    ax = sns.scatterplot(x='loom', y='freeze_only', data=df_grouped, 
+                        color='darkcyan', s=50)
+    ax = sns.scatterplot(x='loom', y='mix_responses', data=df_grouped, 
+                        color='purple', s=50)
+    ax = sns.scatterplot(x='loom', y='escape_only', data=df_grouped, 
+                        color='tomato', s=50)
+    ax = sns.scatterplot(x='loom', y='esc_none', data=df_grouped, 
+                        color='lightgrey', s=50)
+    
+    # Formatting
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.8))
+    ax.set_title(f'{group_name}: Grouped behaviour (n={n_flies})', fontsize=20, pad=15)
+    ax.set_ylabel('Fraction of flies', fontsize=18)
+    ax.set_xlabel('Loom #', fontsize=18)
+    ax.set_xticks(np.array(range(20)))
+    ax.set_xticklabels(np.arange(1, 21, 1))
+    ax.set_ylim([0, 1])
+    
+    # Spines
+    ax.spines['left'].set_visible(True)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_position(('outward', 5))
+    ax.spines['bottom'].set_position(('outward', 5))
+    ax.spines['left'].set_color('dimgrey')
+    ax.spines['bottom'].set_color('dimgrey')
+    
+    # Tick params
+    ax.tick_params(axis='x', colors='k', labelsize=16)
+    ax.tick_params(axis='y', colors='k', labelsize=16)
+    ax.xaxis.label.set_color('k')
+    ax.yaxis.label.set_color('k')
+    
+    # Save
+    plt.savefig(f"{save_path}/{group_name}_grouped_behaviour.png", 
+                bbox_inches='tight', format='png')
+    plt.savefig(f"{save_path.replace('plots', 'plots_pdf')}/{group_name}_grouped_behaviour.pdf", 
+                bbox_inches='tight', format='pdf')
+    
+    # Also save to escape_plots subfolder
+    escape_save_path = save_path + '/escape_plots'
+    os.makedirs(escape_save_path, exist_ok=True)
+    plt.savefig(f"{escape_save_path}/{group_name}_grouped_behaviour.png", 
+                bbox_inches='tight', format='png')
+    
+    escape_pdf_path = save_path.replace('plots', 'plots_pdf') + '/escape_plots'
+    os.makedirs(escape_pdf_path, exist_ok=True)
+    plt.savefig(f"{escape_pdf_path}/{group_name}_grouped_behaviour.pdf", 
+                bbox_inches='tight', format='pdf')
+    
+    plt.show()
+
+
+#%% CALL THE PLOTTING FUNCTION
+
+# Calculate number of flies
+n_flies = len(all_flies_data_with_looms)
+
+# Plot
+plot_escape_updated(df_grouped, n_flies, group1_label, plot_path)
+#%% all the nice etogramme are here!!
+'''
 #%% Plot Speed Profiles by Escape Type (raw speed no binning data!!)
 
 def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path, 
@@ -1978,227 +2115,5 @@ plot_ethogram_with_background(ethogram_bg_sorted, ethogram_fg_sorted, metadata, 
 
 #no-response speed profile
 plot_no_response_speed_profile(all_flies_data_with_looms, group_name=group1_label, save_path=plot_path, baseline_frames=baseline_frames, frames_before=60, frames_after=90, frame_rate=60)
-
-#%%
-'''#removing this here because at the moment I don't want behaviours to be mutally excluding!
-# for i in range(len(df_all)): 
-#     if df_all.loc[i,'esc_jump']==1: #=> jumping is ovveriding everything!
-#         df_all.loc[i,'esc_run']=0
-#         df_all.loc[i,'esc_mean_vel']=0
-#         df_all.loc[i,'esc_turn']=0
-#         df_all.loc[i,'esc_freeze']=0 # can flies jump and then freeze? Which escape is counted?
-  
-#     elif df_all.loc[i,'esc_run']==1: #=> running is ovveriding freezing!
-#         df_all.loc[i,'esc_freeze']=0
-
-
-# df_all.loc[(df_all['esc_run']==1) & (df_all['esc_turn']==1), ['turn_run', 'esc_run', 'esc_turn']]=[1,0,0] #if flies is in an escape turn and in a escape_run she will be categorized as turn run!
-
-
-# col_lst = ['esc_turn', 'esc_jump', 'esc_run', 'esc_freeze','esc_mean_vel']
-# df_all['esc_none'] = df_all[col_lst].sum(axis=1)
-# for i in range(len(df_all)):
-#     if df_all.loc[i,'esc_none']==0:
-#         df_all.loc[i,'esc_none']=1 #if fly is not engaging in any of this behaviour (turn, jump, run, freeze): she is classified as non responder!
-#     else:
-#         df_all.loc[i,'esc_none']=0
-
-# escape = ['esc_turn', 'esc_jump', 'esc_run']
-# df_all['escape'] = df_all[escape].sum(axis=1)
-# for i in range(len(df_all)):
-#     if df_all.loc[i,'escape']>0:
-#         df_all.loc[i,'escape']=1
-#     else:
-#         df_all.loc[i,'escape']=0
-'''
-#%%
-#df_grouped = df_all.groupby('index').mean() #all rows in df_all that have the same value in the 'index' column (which represent looms) are put into the same group and the mean is calculated
-#df_grouped['loom'] = range(len(df_grouped)) #groupby('index') → groups rows by loom. .mean() → computes the fraction of flies engaging in this behaviours per loom.
-#%%
-'''
-def plot_escape(group,raw_group, group_name):
-    n = len(raw_group)/20
-    plt.figure(figsize=(10,6)) #largura x altura
-    ax = sns.lineplot(x='loom', y='esc_freeze', data=group, label='freezers', color='darkcyan', linestyle='--')
-    ax = sns.lineplot(x='loom', y='escape', data=group, label='escapers', color='tomato')
-    ax = sns.lineplot(x='loom', y='esc_none', data=group, label='non-responders', color='lightgrey')
-    ax = sns.scatterplot(x='loom', y='esc_freeze', data=group, color='darkcyan', s=50) #label='freezers'
-    ax = sns.scatterplot(x='loom', y='escape', data=group, color='tomato', s=50) #label='escapers',
-    ax = sns.scatterplot(x='loom', y='esc_none', data=group, color='lightgrey', s=50) #label='non-responders'    
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.8))
-    ax.set_title(group_name +': grouped behaviour (n=%i)' %n, fontsize = 20, pad = 15)
-    ax.set_ylabel('Fraction of flies', fontsize = 18)
-    ax.set_xlabel('Loom #', fontsize = 18)
-#    ax.set_ylabel('fraction of flies')
-    ax.set_xticks(np.array(range(20)))
-    ax.set_xticklabels(np.arange(1, 21, 1))
-    ax.set_ylim([0,1]);
-    ax.spines['left'].set_visible(True)
-    ax.spines['bottom'].set_visible(True)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_position(('outward', 5))
-    ax.spines['bottom'].set_position(('outward', 5))
-    ax.spines['left'].set_color('dimgrey')
-    ax.spines['bottom'].set_color('dimgrey')
-    ax.tick_params(axis='x', colors = 'k', labelsize=16)
-    ax.tick_params(axis='y', colors = 'k', labelsize=16)
-    ax.xaxis.label.set_color('k')
-    ax.yaxis.label.set_color('k')
-    
-    plt.savefig(plot_path+"/"+str(group_name+"_grouped_behaviour.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf+"/"+str(group_name+"_grouped_behaviour.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.savefig(plot_path_escape_plots+"/"+str(group_name+"_grouped_behaviour.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf_escape_plots+"/"+str(group_name+"_grouped_behaviour.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.show()
-    
-   
-    plt.figure(figsize=(10,6)) 
-    ax = sns.lineplot(x='loom', y='esc_freeze', data=group, label='freeze', color='darkcyan')
-    ax = sns.scatterplot(x='loom', y='esc_freeze', data=group, color='darkcyan', s=50) #label='freeze', 
-    ax = sns.lineplot(x='loom', y='esc_run', data=group, label='run', color='tomato')
-    ax = sns.scatterplot(x='loom', y='esc_run', data=group, color='tomato', s=50) #label='run', 
-    ax = sns.lineplot(x='loom', y='esc_jump', data=group, label='jump', color='darkslateblue')
-    ax = sns.scatterplot(x='loom', y='esc_jump', data=group, color='darkslateblue', s=50) #label='jump', 
-    ax = sns.lineplot(x='loom', y='esc_turn', data=group, label='turn', color='y', zorder=5)
-    ax = sns.scatterplot(x='loom', y='esc_turn', data=group, color='y', zorder=5, s=50) #label='turn', 
-    ax = sns.lineplot(x='loom', y='esc_none', data=group, label='no response', color='lightgrey')
-    ax = sns.scatterplot(x='loom', y='esc_none', data=group, color='lightgrey', s=50) #label='no response', 
-    #ax = sns.lineplot(x='loom', y='turn_run', data=group, label='turn&run', color='purple')
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.8))
-    ax.set_xticks(np.array(range(20)))
-    ax.set_xticklabels(np.arange(1, 21, 1))
-    ax.set_ylim([0,1]);
-    
-    ax.set_title(group_name +': all_behaviours (n=%i)' %n, fontsize = 20)
-    ax.set_ylabel('Fraction of flies', fontsize = 18)
-    ax.set_xlabel('Loom #', fontsize = 18)
-    ax.spines['left'].set_visible(True)
-    ax.spines['bottom'].set_visible(True)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_position(('outward', 5))
-    ax.spines['bottom'].set_position(('outward', 5))
-    ax.spines['left'].set_color('dimgrey')
-    ax.spines['bottom'].set_color('dimgrey')
-    ax.tick_params(axis='x', colors = 'k', labelsize=16)
-    ax.tick_params(axis='y', colors = 'k', labelsize=16)
-    ax.xaxis.label.set_color('k')
-    ax.yaxis.label.set_color('k')
-    
-    plt.savefig(plot_path+"/"+str(group_name+"_all_behaviours.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf+"/"+str(group_name+"_all_behaviours.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.savefig(plot_path_escape_plots+"/"+str(group_name+"_all_behaviours.png"), bbox_inches='tight',format='png')
-    plt.savefig(plot_path_pdf_escape_plots+"/"+str(group_name+"_all_behaviours.pdf"), bbox_inches='tight', format='pdf')
-        
-    plt.show()
-    plt.clf();
-           
-    #of the escapes, what is the distribution between turn, run and jump? (only escapes included, not freezing)
-    raw_nofreeze = raw_group.mask(raw_group.esc_freeze == 1).dropna(how='all')
-    raw_clean = raw_nofreeze.mask(raw_nofreeze.esc_none == 1).dropna(how='all')
-    raw_clean.drop('escape', axis=1,inplace=True)
-    
-    group_clean = raw_clean.groupby('index').mean()
-    group_clean['loom'] = range(len(group_clean))
-    escape = ['esc_turn', 'esc_jump', 'esc_run', 'turn_run']
-    group_clean['sum'] = group_clean[escape].sum(axis=1)
-    
-
-    plt.figure(figsize=(10,6)) ; 
-    ax = sns.lineplot(x='loom', y='esc_jump', data=group_clean, label='jump', color='darkslateblue')
-    ax = sns.lineplot(x='loom', y='esc_run', data=group_clean, label='run', color='tomato')   
-    ax = sns.lineplot(x='loom', y='esc_turn', data=group_clean, label='turn', color='y', zorder=5)
-    ax = sns.scatterplot(x='loom', y='esc_jump', data=group_clean, color='darkslateblue', s=50)
-    ax = sns.scatterplot(x='loom', y='esc_run', data=group_clean, color='tomato', s=50)      
-    ax = sns.scatterplot(x='loom', y='esc_turn', data=group_clean, color='y', zorder=5, s=50)
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.8))
-    ax.set_xticks(np.array(range(20)))
-    ax.set_xticklabels(np.arange(1, 21, 1))
-    ax.set_ylim([0,1.2]);
-    
-    ax.set_title(group_name +': different escape behaviours (n=%i)' %n, fontsize = 20, pad = 20)
-    ax.set_ylabel('Fraction of flies', fontsize = 18)
-    ax.set_xlabel('Loom #', fontsize = 18)
-    ax.spines['left'].set_visible(True)
-    ax.spines['bottom'].set_visible(True)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_position(('outward', 5))
-    ax.spines['bottom'].set_position(('outward', 5))
-    ax.spines['left'].set_color('dimgrey')
-    ax.spines['bottom'].set_color('dimgrey')
-    ax.tick_params(axis='x', colors = 'k', labelsize=16)
-    ax.tick_params(axis='y', colors = 'k', labelsize=16)
-    ax.xaxis.label.set_color('k')
-    ax.yaxis.label.set_color('k')
-    
-    plt.savefig(plot_path+"/"+str(group_name+"_different_escape_behaviours.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf+"/"+str(group_name+"_different_escape_behaviours.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.savefig(plot_path_escape_plots+"/"+str(group_name+"_different_escape_behaviours.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf_escape_plots+"/"+str(group_name+"_different_escape_behaviours.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.show()
-    plt.clf();
-     
-    group_clean['cumulative_bout_1'] = group_clean['esc_run'] + group_clean['esc_turn'] + group_clean['turn_run'] + group_clean['esc_jump']
-    group_clean['cumulative_bout_2'] = group_clean['esc_run'] + group_clean['esc_turn'] + group_clean['turn_run']
-    group_clean['cumulative_bout_3'] = group_clean['esc_run'] + group_clean['esc_turn'] 
-    group_clean['cumulative_bout_4'] = group_clean['esc_run'] 
-    print(group_clean['turn_run'].max())
-    
-    x_coordinate = [i for i in range(len(group_clean))]
-    
-    fig, ax = plt.subplots(figsize=(10,6))
-    
-    ax.set_title(group_name +': different escape behaviours (n=%i)' %n, fontsize = 20)
-    ax.set_ylabel('Fraction of flies', fontsize = 18)
-    ax.set_xlabel('Loom #', fontsize = 18)
-    ax.spines['left'].set_visible(True)
-    ax.spines['bottom'].set_visible(True)
-    ax.spines['right'].set_visible(False)
-    ax.spines['top'].set_visible(False)
-    ax.spines['left'].set_position(('outward', 5))
-    ax.spines['bottom'].set_position(('outward', 5))
-    ax.spines['left'].set_color('dimgrey')
-    ax.spines['bottom'].set_color('dimgrey')
-    ax.tick_params(axis='x', colors = 'k', labelsize=16)
-    ax.tick_params(axis='y', colors = 'k', labelsize=16)
-    ax.xaxis.label.set_color('k')
-    ax.yaxis.label.set_color('k')
-    
-    
-    plt.title(group_name +': different escape behaviours (n=%i)' %n, fontsize = 20, pad = 20)
-    plt.xlabel('Loom #', fontsize = 18)
-    plt.ylabel('Fraction of flies', fontsize = 18)
-    
-    ax.plot(x_coordinate, group_clean['cumulative_bout_4'], 'tomato', label = ('Run'))
-    ax.fill_between(x_coordinate, 0, group_clean['cumulative_bout_4'], color='tomato', alpha=0.7)
-    ax.plot(x_coordinate, group_clean['cumulative_bout_3'], 'y-', label = ('Turn'))
-    ax.fill_between(x_coordinate, group_clean['cumulative_bout_4'], group_clean['cumulative_bout_3'], color='y', alpha=0.7)
-    ax.plot(x_coordinate, group_clean['cumulative_bout_1'], 'darkslateblue', label = ('Jumping'))
-    ax.fill_between(x_coordinate, group_clean['cumulative_bout_2'], group_clean['cumulative_bout_1'], color='darkslateblue', alpha=0.6)
-    plt.xticks(np.array(range(20)))
-    ax.set_xticklabels(np.arange(1, 21, 1))
-    plt.ylim([0,1.0]);    
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.8))
-    
-    
-    plt.savefig(plot_path+"/"+str(group_name+"_cumulative_escape_behaviours.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf+"/"+str(group_name+"_cumulative_escape_behaviours.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.savefig(plot_path_escape_plots+"/"+str(group_name+"_cumulative_escape_behaviours.png"), bbox_inches='tight', format='png')
-    plt.savefig(plot_path_pdf_escape_plots+"/"+str(group_name+"_cumulative_escape_behaviours.pdf"), bbox_inches='tight', format='pdf')
-    
-    plt.show();
-    return group_clean
-
-
-clean1 = plot_escape(group1, raw1, group1_label )
-clean2 = plot_escape(group2, raw2, group2_label)
 
 '''
