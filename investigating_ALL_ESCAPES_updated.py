@@ -815,7 +815,7 @@ arena_center_y = 15
 frame_rate = 60
 
 #EXPERIMENT DURATION (in sec)
-baseline  = 300 #30
+baseline  = 30 #30
 stimulation = 300
 #(in min)
 total_duration_min = (baseline + stimulation) / 60
@@ -1042,39 +1042,26 @@ print(f"\nAll fractions sum to 1.0? {np.allclose(df_grouped['fraction_sum'], 1.0
 
 def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
     """
-    Plot escape responses across looms.
-    
+    Plot escape responses across looms.   
     Lines:
     - Freeze only (freeze without escape)
     - Mix responses (escape + freeze)
     - Non-responders (no escape, no freeze)
-    - Escapes (any active escape)
+    - Escapes (escape only)
     """
     
     plt.figure(figsize=(10, 6))
-    
-
-    
+        
     # Plot lines
-    ax = sns.lineplot(x='loom', y='freeze_only', data=df_grouped, 
-                     label='Freeze', color='darkcyan')
-    ax = sns.lineplot(x='loom', y='mix_responses', data=df_grouped, 
-                     label='Mix responses', color='purple')
-    ax = sns.lineplot(x='loom', y='escape_only', data=df_grouped, 
-                     label='Escapes', color='tomato')
-    ax = sns.lineplot(x='loom', y='esc_none', data=df_grouped, 
-                     label='Others', color='lightgrey')
-    
+    ax = sns.lineplot(x='loom', y='freeze_only', data=df_grouped, label='Freeze', color='darkcyan')
+    ax = sns.lineplot(x='loom', y='mix_responses', data=df_grouped, label='Mix responses', color='purple')
+    ax = sns.lineplot(x='loom', y='escape_only', data=df_grouped, label='Escapes', color='tomato')
+    ax = sns.lineplot(x='loom', y='esc_none', data=df_grouped, label='Others', color='lightgrey')    
     # Add scatter points
-    ax = sns.scatterplot(x='loom', y='freeze_only', data=df_grouped, 
-                        color='darkcyan', s=50)
-    ax = sns.scatterplot(x='loom', y='mix_responses', data=df_grouped, 
-                        color='purple', s=50)
-    ax = sns.scatterplot(x='loom', y='escape_only', data=df_grouped, 
-                        color='tomato', s=50)
-    ax = sns.scatterplot(x='loom', y='esc_none', data=df_grouped, 
-                        color='lightgrey', s=50)
-    
+    ax = sns.scatterplot(x='loom', y='freeze_only', data=df_grouped, color='darkcyan', s=50)
+    ax = sns.scatterplot(x='loom', y='mix_responses', data=df_grouped, color='purple', s=50)
+    ax = sns.scatterplot(x='loom', y='escape_only', data=df_grouped, color='tomato', s=50)
+    ax = sns.scatterplot(x='loom', y='esc_none', data=df_grouped, color='lightgrey', s=50)    
     # Formatting
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.8))
     ax.set_title(f'{group_name}: Grouped behaviour (n={n_flies})', fontsize=20, pad=15)
@@ -1082,8 +1069,7 @@ def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
     ax.set_xlabel('Loom #', fontsize=18)
     ax.set_xticks(np.array(range(20)))
     ax.set_xticklabels(np.arange(1, 21, 1))
-    ax.set_ylim([0, 1])
-    
+    ax.set_ylim([0, 1])    
     # Spines
     ax.spines['left'].set_visible(True)
     ax.spines['bottom'].set_visible(True)
@@ -1092,41 +1078,141 @@ def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
     ax.spines['left'].set_position(('outward', 5))
     ax.spines['bottom'].set_position(('outward', 5))
     ax.spines['left'].set_color('dimgrey')
-    ax.spines['bottom'].set_color('dimgrey')
-    
+    ax.spines['bottom'].set_color('dimgrey')    
     # Tick params
     ax.tick_params(axis='x', colors='k', labelsize=16)
     ax.tick_params(axis='y', colors='k', labelsize=16)
     ax.xaxis.label.set_color('k')
-    ax.yaxis.label.set_color('k')
-    
+    ax.yaxis.label.set_color('k')    
     # Save
-    plt.savefig(f"{save_path}/{group_name}_grouped_behaviour.png", 
-                bbox_inches='tight', format='png')
-    plt.savefig(f"{save_path.replace('plots', 'plots_pdf')}/{group_name}_grouped_behaviour.pdf", 
-                bbox_inches='tight', format='pdf')
+    plt.savefig(f"{save_path}/{group_name}_grouped_behaviour.png", bbox_inches='tight', format='png')
+    plt.savefig(f"{save_path.replace('plots', 'plots_pdf')}/{group_name}_grouped_behaviour.pdf", bbox_inches='tight', format='pdf')
     
     # Also save to escape_plots subfolder
     escape_save_path = save_path + '/escape_plots'
     os.makedirs(escape_save_path, exist_ok=True)
-    plt.savefig(f"{escape_save_path}/{group_name}_grouped_behaviour.png", 
-                bbox_inches='tight', format='png')
+    plt.savefig(f"{escape_save_path}/{group_name}_grouped_behaviour.png", bbox_inches='tight', format='png')
     
     escape_pdf_path = save_path.replace('plots', 'plots_pdf') + '/escape_plots'
     os.makedirs(escape_pdf_path, exist_ok=True)
-    plt.savefig(f"{escape_pdf_path}/{group_name}_grouped_behaviour.pdf", 
-                bbox_inches='tight', format='pdf')
-    
+    plt.savefig(f"{escape_pdf_path}/{group_name}_grouped_behaviour.pdf", bbox_inches='tight', format='pdf')    
     plt.show()
-
-
 #%% CALL THE PLOTTING FUNCTION
 
 # Calculate number of flies
 n_flies = len(all_flies_data_with_looms)
 
 # Plot
-plot_escape_updated(df_grouped, n_flies, group1_label, plot_path)
+#plot_escape_updated(df_grouped, n_flies, group1_label, plot_path)
+#%%
+def plot_stacked_bar_aggregated_with_csv(df_all, group_name, save_path):
+    """
+    Create vertical stacked bar plot AND save summary to CSV.
+    """
+    
+    # Calculate overall fractions (aggregate all looms)
+    total_trials = len(df_all)
+    
+    freeze_only_count = df_all['freeze_only'].sum()
+    mix_count = df_all['mix_responses'].sum()
+    escape_only_count = df_all['escape_only'].sum()
+    none_count = df_all['esc_none'].sum()
+    
+    freeze_only_frac = freeze_only_count / total_trials
+    mix_frac = mix_count / total_trials
+    escape_only_frac = escape_only_count / total_trials
+    none_frac = none_count / total_trials
+    
+    # Verify sum = 1
+    total_check = freeze_only_frac + mix_frac + escape_only_frac + none_frac
+    print(f"\nStacked bar fractions sum to: {total_check:.4f} (should be 1.0)")
+    
+    # SAVE TO CSV   
+    summary_data = {
+        'Group': [group_name, group_name, group_name, group_name],
+        'Category': ['Freeze_only', 'Mix_responses', 'Escape_only', 'Non_responders'],
+        'Count': [freeze_only_count, mix_count, escape_only_count, none_count],
+        'Total_trials': [total_trials, total_trials, total_trials, total_trials],
+        'Fraction': [freeze_only_frac, mix_frac, escape_only_frac, none_frac],
+        'Percentage': [freeze_only_frac*100, mix_frac*100, escape_only_frac*100, none_frac*100]
+    }
+    
+    df_summary = pd.DataFrame(summary_data)
+    
+    csv_path = f"{save_path}/{group_name}_stacked_bar_summary.csv"
+    df_summary.to_csv(csv_path, index=False)
+    print(f"✓ Saved summary to: {csv_path}")
+    
+    # PLOTTING     
+    categories = ['Freeze', 'Mix responses', 'Escape', 'Others']
+    fractions = [freeze_only_frac, mix_frac, escape_only_frac, none_frac]
+    colors = ['darkcyan', 'purple', 'tomato', 'lightgrey']
+    
+    fig, ax = plt.subplots(figsize=(6, 8))
+    
+    bottom = 0
+    for i, (cat, frac, color) in enumerate(zip(categories, fractions, colors)):
+        #ax.bar(0, frac, bottom=bottom, color=color, edgecolor='black', linewidth=0.5, label=cat, width=0.6)
+        ax.bar(0, frac, bottom=bottom, color=color, label=cat, width=0.6)
+        
+        if frac > 0.02:
+            #ax.text(0, bottom + frac/2, f'{frac*100:.1f}%', ha='center', va='center', fontsize=14, fontweight='bold', color='white' if frac > 0.1 else 'black') 
+            ax.text(0, bottom + frac/2, f'{frac*100:.1f}%', ha='center', va='center', fontsize=14, fontweight='bold', color='white')        
+        bottom += frac
+    
+    ax.set_ylim([0, 1])
+    ax.set_xlim([-0.5, 0.5])
+    ax.set_ylabel('Fraction of loom responses', fontsize=18)
+    ax.set_title(f'{group_name}', fontsize=18, pad=20)
+    ax.set_xticks([])
+    ax.set_yticks(np.arange(0, 1.1, 0.1))
+    
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=12, frameon=True)
+    
+    ax.spines['left'].set_visible(True)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_position(('outward', 5))
+    ax.spines['bottom'].set_position(('outward', 5))
+    
+    ax.grid(axis='y', alpha=0.3, linestyle='--')
+    ax.set_axisbelow(True)
+    
+    plt.tight_layout()
+    
+    # Save
+    os.makedirs(save_path, exist_ok=True)
+    plt.savefig(f"{save_path}/{group_name}_stacked_bar_aggregated.png", bbox_inches='tight', dpi=300)
+    
+    pdf_path = save_path.replace('plots', 'plots_pdf')
+    os.makedirs(pdf_path, exist_ok=True)
+    plt.savefig(f"{pdf_path}/{group_name}_stacked_bar_aggregated.pdf", bbox_inches='tight')
+    
+    escape_path = save_path + '/escape_plots'
+    os.makedirs(escape_path, exist_ok=True)
+    plt.savefig(f"{escape_path}/{group_name}_stacked_bar_aggregated.png", bbox_inches='tight', dpi=300)
+    
+    escape_pdf_path = pdf_path + '/escape_plots'
+    os.makedirs(escape_pdf_path, exist_ok=True)
+    plt.savefig(f"{escape_pdf_path}/{group_name}_stacked_bar_aggregated.pdf", bbox_inches='tight')
+    
+    plt.show()
+    
+    # Print summary
+    print(f"\n{'='*50}")
+    print(f"{group_name} - Aggregated Response Summary")
+    print(f"{'='*50}")
+    print(f"Total trials: {total_trials}")
+    print(f"Freeze only:     {freeze_only_frac*100:5.1f}%")
+    print(f"Mix responses:   {mix_frac*100:5.1f}%")
+    print(f"Escape only:     {escape_only_frac*100:5.1f}%")
+    print(f"Non-responders:  {none_frac*100:5.1f}%")
+    print(f"{'='*50}\n")
+    
+    return df_summary
+# Save summary with CSV
+df_summary = plot_stacked_bar_aggregated_with_csv(df_all, group1_label, plot_path)
 #%% all the nice etogramme are here!!
 '''
 #%% Plot Speed Profiles by Escape Type (raw speed no binning data!!)
