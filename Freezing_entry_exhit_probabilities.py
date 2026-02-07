@@ -430,13 +430,13 @@ def plot_probability_violins(results, output_dir, group_names):
     
     probability_types = ['entry', 'resumption', 'break', 'spontaneous']
     titles = [
-        'Freezing Entry Probability\n(Not freezing → Freezing)',
-        'Freezing Resumption Probability\n(Freezing → Break → Freezing)',
-        'Freeze Break by Loom Probability\n(Freezing → Break during loom)',
-        'Spontaneous Break Probability\n(Freezing → Break before next loom)'
+        'Freezing Entry Probability',
+        'Freezing Resumption Probability',
+        'Freeze Break by Loom Probability',
+        'Spontaneous Break Probability'
     ]
     
-    colors = sns.color_palette("husl", len(group_names))
+    colors=['C0', '#A9CCE3'] # blu and pale blu # Classic blue and orange colors = ['#1f77b4', '#ff7f0e']
     
     for idx, (prob_type, title) in enumerate(zip(probability_types, titles)):
         ax = axes[idx]
@@ -448,12 +448,13 @@ def plot_probability_violins(results, output_dir, group_names):
             ax.set_title(title, fontsize=14, fontweight='bold')
             continue
         
-        # Create violin plot
+        # Create violin plot (without showing default mean/median lines)
         parts = ax.violinplot(
             [df[df['group'] == group]['probability'].values for group in group_names],
             positions=range(len(group_names)),
-            showmeans=True,
-            showmedians=True,
+            showmeans=False,
+            showmedians=False,
+            showextrema=False,  # Don't show the default quartile bars
             widths=0.7
         )
         
@@ -461,6 +462,16 @@ def plot_probability_violins(results, output_dir, group_names):
         for pc, color in zip(parts['bodies'], colors):
             pc.set_facecolor(color)
             pc.set_alpha(0.7)
+        
+        # Add custom median line that is clearly visible
+        for i, group in enumerate(group_names):
+            group_data = df[df['group'] == group]['probability'].values
+            if len(group_data) > 0:
+                median_val = np.median(group_data)
+                
+                # Draw median as thick black solid line
+                ax.plot([i-0.25, i+0.25], [median_val, median_val], 
+                       color='black', linewidth=1.5, linestyle='-', zorder=3)
         
         # Add individual points
         for i, group in enumerate(group_names):
@@ -470,16 +481,14 @@ def plot_probability_violins(results, output_dir, group_names):
         
         # Formatting
         ax.set_xticks(range(len(group_names)))
-        ax.set_xticklabels(group_names, fontsize=11)
-        ax.set_ylabel('Probability', fontsize=12)
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        labels_with_n = [f'{group} (n={len(df[df["group"] == group])})' for group in group_names]
+        ax.set_xticklabels(labels_with_n, fontsize=12)
+        ax.set_ylabel('Probability', fontsize=14)
+        ax.set_title(title, fontsize=15)
         ax.set_ylim(-0.05, 1.05)
         ax.grid(axis='y', alpha=0.3, linestyle='--')
-        
-        # Add sample sizes
-        for i, group in enumerate(group_names):
-            n = len(df[df['group'] == group])
-            ax.text(i, -0.1, f'n={n}', ha='center', fontsize=10)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
     
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'freezing_probabilities_violins.png'), dpi=300, bbox_inches='tight')
@@ -533,8 +542,8 @@ def save_summary_statistics(results, output_dir, group_names):
 
 if __name__ == "__main__":
     # Define groups
-    group_5min = '5minbase'  # ⚠️ CHANGE THIS to match your filenames
-    group_30sec = '30secbase'  # ⚠️ CHANGE THIS to match your filenames
+    group_5min = '5min'  # ⚠️ CHANGE THIS to match your filenames
+    group_30sec = '30sec'  # ⚠️ CHANGE THIS to match your filenames
     group_names = [group_5min, group_30sec]
     
     frame_rate = 60
