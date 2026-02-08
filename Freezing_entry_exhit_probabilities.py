@@ -47,72 +47,35 @@ def is_freezing(behavior_val):
     """Check if a behavior value represents freezing (Freeze or Resistant_Freeze)"""
     return behavior_val in ['Freeze', 'Resistant_Freeze']
 
-
-def detect_loom_times(rootdir, group_names, frame_rate=60):
+def check_freezing_by_type(behavior_val, freeze_type='all'):
     """
-    Automatically detect loom onset times from VisualStim column.
+    Check if a behavior matches the specified freeze type.
+    
+    Parameters:
+    -----------
+    behavior_val : str
+        The behavior value to check
+    freeze_type : str
+        'all' - both Freeze and Resistant_Freeze
+        'labile' - only Freeze
+        'resistant' - only Resistant_Freeze
+    
+    Returns:
+    --------
+    bool : True if behavior matches the freeze type
     """
-    all_loom_onsets = []
-    baseline_frames = {}
-    
-    print("\n" + "=" * 60)
-    print("DETECTING LOOM TIMES FROM DATA")
-    print("=" * 60)
-    
-    for group in group_names:
-        group_loom_onsets = []
-        
-        for filename in sorted(os.listdir(rootdir)):
-            if group not in filename or '.csv' not in filename:
-                continue
-            
-            try:
-                fly_df = pd.read_csv(os.path.join(rootdir, filename), usecols=['VisualStim'])
-                loom_onset = fly_df.loc[fly_df['VisualStim'].diff() == -1].index.values.astype(int)
-                loom_offset = fly_df.loc[fly_df['VisualStim'].diff() == 1].index.values.astype(int)
-                if len(loom_onset) > 0:
-                    group_loom_onsets.append(loom_onset)
-                    all_loom_onsets.append(loom_onset)
-                    
-                    if group not in baseline_frames:
-                        baseline_frames[group] = loom_onset[0]
-                        
-            except Exception as e:
-                print(f"Warning: Could not read VisualStim from {filename}: {e}")
-                continue        
-        
-        if len(group_loom_onsets) > 0:
-            avg_looms = np.array(group_loom_onsets[0])
-            print(f"\n{group}:")
-            print(f"  Baseline frames: {baseline_frames[group]}")
-            print(f"  Baseline duration: {baseline_frames[group]/frame_rate:.1f} seconds")
-            print(f"  Number of looms detected: {len(avg_looms)}")
-    
-    if len(all_loom_onsets) > 0:
-        reference_looms = all_loom_onsets[0]
-        first_loom_frame = reference_looms[0]
-        relative_loom_frames = reference_looms - first_loom_frame
-        relative_loom_times = relative_loom_frames / frame_rate
-        
-        print("\n" + "-" * 60)
-        print("DETECTED LOOM PATTERN:")
-        print(f"Loom times (seconds from first loom): {relative_loom_times}")
-        print(f"Inter-loom intervals: {np.diff(relative_loom_times)}")
-        print("-" * 60)
-        
-        return {
-            'loom_frames': relative_loom_frames,
-            'loom_times': relative_loom_times,
-            'baseline_frames': baseline_frames,
-            'loom_onsets': reference_looms,
-            'all_loom_onsets': all_loom_onsets
-        }
+    if freeze_type == 'all':
+        return behavior_val in ['Freeze', 'Resistant_Freeze']
+    elif freeze_type == 'labile':
+        return behavior_val == 'Freeze'
+    elif freeze_type == 'resistant':
+        return behavior_val == 'Resistant_Freeze'
     else:
-        print("\n⚠️  WARNING: No looms detected!")
-        return None
+        raise ValueError(f"Unknown freeze_type: {freeze_type}. Use 'all', 'labile', or 'resistant'")
 
 
-def analyze_freezing_entry(fly_df, loom_onset, loom_offset, frame_rate=60):
+
+def analyze_freezing_entry(fly_df, loom_onset, loom_offset, frame_rate=60, freeze_type='all'):
     """
     Probability of freezing ENTRY: 
     Fly NOT freezing before loom → starts freezing after loom
@@ -121,6 +84,13 @@ def analyze_freezing_entry(fly_df, loom_onset, loom_offset, frame_rate=60):
     - Before loom: DOMINANT behavior (most frequent) in 1sec window is NOT freezing
     - Before loom: 3 frames immediately before loom onset are NOT freezing
     - After loom: DOMINANT behavior in 1sec window after loom offset IS freezing
+    
+    Parameters:
+    -----------
+    freeze_type : str
+        'all' - both Freeze and Resistant_Freeze
+        'labile' - only Freeze
+        'resistant' - only Resistant_Freeze
     
     Returns: 1 if entry occurred, 0 if not, NaN if criteria not met
     """
@@ -141,11 +111,12 @@ def analyze_freezing_entry(fly_df, loom_onset, loom_offset, frame_rate=60):
     post_window = fly_df.iloc[loom_offset:loom_offset + window_1sec]
     dominant_post = get_dominant_behavior(post_window)
     
-    # Check criteria:
+    # Check criteria using freeze_type:
     # Pre: dominant is NOT freezing AND 3 frames before are NOT freezing
-    pre_not_freezing = (not is_freezing(dominant_pre)) and all(not is_freezing(b) for b in frames_before_loom)
+    pre_not_freezing = (not check_freezing_by_type(dominant_pre, freeze_type)) and \
+                       all(not check_freezing_by_type(b, freeze_type) for b in frames_before_loom)
     # Post: dominant IS freezing
-    post_freezing = is_freezing(dominant_post)
+    post_freezing = check_freezing_by_type(dominant_post, freeze_type)
     
     if pre_not_freezing:
         return 1.0 if post_freezing else 0.0
@@ -153,7 +124,7 @@ def analyze_freezing_entry(fly_df, loom_onset, loom_offset, frame_rate=60):
         return np.nan  # Doesn't meet pre-loom criteria
 
 
-def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60):
+def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60, freeze_type='all'):
     """
     Probability of freezing RESUMPTION:
     Fly freezing before loom → breaks during loom → resumes freezing after loom
@@ -163,6 +134,13 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60):
     - Before loom: 3 frames immediately before loom onset ARE freezing
     - During loom: freeze interrupted for at least 3 frames in 750ms window from onset
     - After loom: DOMINANT behavior in 1sec window after loom offset IS freezing
+    
+    Parameters:
+    -----------
+    freeze_type : str
+        'all' - both Freeze and Resistant_Freeze
+        'labile' - only Freeze
+        'resistant' - only Resistant_Freeze
     
     Returns: 1 if resumption occurred, 0 if not, NaN if criteria not met
     """
@@ -181,7 +159,8 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60):
     frames_before_loom = fly_df.iloc[loom_onset - 3:loom_onset]['Behavior'].values
     
     # Check if DOMINANT behavior is freezing AND 3 frames before are freezing
-    pre_freezing = is_freezing(dominant_pre) and all(is_freezing(b) for b in frames_before_loom)
+    pre_freezing = check_freezing_by_type(dominant_pre, freeze_type) and \
+                   all(check_freezing_by_type(b, freeze_type) for b in frames_before_loom)
     
     if not pre_freezing:
         return np.nan  # Doesn't meet pre-loom criteria
@@ -193,7 +172,7 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60):
     broke_freeze = False
     consecutive_non_freeze = 0
     for behavior in during_window:
-        if not is_freezing(behavior):
+        if not check_freezing_by_type(behavior, freeze_type):
             consecutive_non_freeze += 1
             if consecutive_non_freeze >= 3:
                 broke_freeze = True
@@ -209,10 +188,10 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60):
     dominant_post = get_dominant_behavior(post_window)
     
     # If broke during loom, did they resume freezing (DOMINANT)?
-    return 1.0 if is_freezing(dominant_post) else 0.0
+    return 1.0 if check_freezing_by_type(dominant_post, freeze_type) else 0.0
 
 
-def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60):
+def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60, freeze_type='all'):
     """
     Probability of freeze BREAK by loom:
     Fly freezing before loom → breaks during loom
@@ -221,6 +200,13 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60)
     - Before loom: DOMINANT behavior (most frequent) in 1sec window IS freezing
     - Before loom: 3 frames immediately before loom onset ARE freezing
     - During loom: freeze interrupted for at least 3 frames in 750ms window from onset
+    
+    Parameters:
+    -----------
+    freeze_type : str
+        'all' - both Freeze and Resistant_Freeze
+        'labile' - only Freeze
+        'resistant' - only Resistant_Freeze
     
     Returns: 1 if break occurred, 0 if not, NaN if criteria not met
     """
@@ -239,7 +225,8 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60)
     frames_before_loom = fly_df.iloc[loom_onset - 3:loom_onset]['Behavior'].values
     
     # Check if DOMINANT behavior is freezing AND 3 frames before are freezing
-    pre_freezing = is_freezing(dominant_pre) and all(is_freezing(b) for b in frames_before_loom)
+    pre_freezing = check_freezing_by_type(dominant_pre, freeze_type) and \
+                   all(check_freezing_by_type(b, freeze_type) for b in frames_before_loom)
     
     if not pre_freezing:
         return np.nan  # Doesn't meet pre-loom criteria
@@ -250,7 +237,7 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60)
     # Check if freeze was interrupted for at least 3 consecutive frames
     consecutive_non_freeze = 0
     for behavior in during_window:
-        if not is_freezing(behavior):
+        if not check_freezing_by_type(behavior, freeze_type):
             consecutive_non_freeze += 1
             if consecutive_non_freeze >= 3:
                 return 1.0  # Broke freeze
@@ -260,7 +247,7 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60)
     return 0.0  # Did not break freeze
 
 
-def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=60):
+def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=60, freeze_type='all'):
     """
     Probability of SPONTANEOUS break:
     Fly freezing after loom → breaks before next loom
@@ -271,6 +258,13 @@ def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=6
     
     We slide the window frame-by-frame starting from the end of the post-loom window
     until we find a window where freezing is no longer dominant, or we reach the next loom.
+    
+    Parameters:
+    -----------
+    freeze_type : str
+        'all' - both Freeze and Resistant_Freeze
+        'labile' - only Freeze
+        'resistant' - only Resistant_Freeze
     
     Returns: 1 if spontaneous break occurred, 0 if not, NaN if criteria not met
     """
@@ -285,7 +279,7 @@ def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=6
     dominant_post = get_dominant_behavior(post_window)
     
     # Check if DOMINANT behavior is freezing after loom
-    post_freezing = is_freezing(dominant_post)
+    post_freezing = check_freezing_by_type(dominant_post, freeze_type)
     
     if not post_freezing:
         return np.nan  # Doesn't meet post-loom criteria
@@ -307,27 +301,26 @@ def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=6
         window = fly_df.iloc[frame_idx:frame_idx + window_1sec]
         dominant = get_dominant_behavior(window)
         
-        if not is_freezing(dominant):
+        if not check_freezing_by_type(dominant, freeze_type):
             return 1.0  # Found spontaneous break (freezing no longer dominant)
     
     return 0.0  # No spontaneous break detected
 
 
-def analyze_all_flies(rootdir, group_names, loom_info, frame_rate=60):
+def analyze_all_flies(rootdir, group_names, frame_rate=60):
     """
     Analyze all four freezing probabilities for all flies in all groups.
+    Runs analysis for three freeze types: 'all', 'labile', and 'resistant'.
     
-    Returns a dictionary with DataFrames for each probability type.
+    Returns a dictionary with DataFrames for each probability type and freeze type.
     """
+    freeze_types = ['all', 'labile', 'resistant']
     results = {
-        'entry': [],
-        'resumption': [],
-        'break': [],
-        'spontaneous': []
+        f'{prob_type}_{freeze_type}': []
+        for prob_type in ['entry', 'resumption', 'break', 'spontaneous']
+        for freeze_type in freeze_types
     }
-    
-    baseline_frames_dict = loom_info['baseline_frames']
-    
+        
     print("\n" + "=" * 60)
     print("ANALYZING FREEZING PROBABILITIES")
     print("=" * 60)
@@ -354,61 +347,63 @@ def analyze_all_flies(rootdir, group_names, loom_info, frame_rate=60):
                 print(f"    WARNING: No looms detected, skipping...")
                 continue
             
-            # Analyze each loom
-            fly_entry = []
-            fly_resumption = []
-            fly_break = []
-            fly_spontaneous = []
-            
-            for i in range(len(loom_onset)):
-                onset = loom_onset[i]
-                offset = loom_offset[i] if i < len(loom_offset) else onset + int(frame_rate * 0.5)
-                next_onset = loom_onset[i + 1] if i + 1 < len(loom_onset) else None
+            # Analyze each freeze type
+            for freeze_type in freeze_types:
+                fly_entry = []
+                fly_resumption = []
+                fly_break = []
+                fly_spontaneous = []
                 
-                # Calculate all probabilities
-                entry_prob = analyze_freezing_entry(fly_df, onset, offset, frame_rate)
-                resumption_prob = analyze_freezing_resumption(fly_df, onset, offset, frame_rate)
-                break_prob = analyze_freeze_break_by_loom(fly_df, onset, offset, frame_rate)
-                spontaneous_prob = analyze_spontaneous_break(fly_df, offset, next_onset, frame_rate)
+                # Analyze each loom
+                for i in range(len(loom_onset)):
+                    onset = loom_onset[i]
+                    offset = loom_offset[i] if i < len(loom_offset) else onset + int(frame_rate * 0.5)
+                    next_onset = loom_onset[i + 1] if i + 1 < len(loom_onset) else None
+                    
+                    # Calculate all probabilities for this freeze type
+                    entry_prob = analyze_freezing_entry(fly_df, onset, offset, frame_rate, freeze_type)
+                    resumption_prob = analyze_freezing_resumption(fly_df, onset, offset, frame_rate, freeze_type)
+                    break_prob = analyze_freeze_break_by_loom(fly_df, onset, offset, frame_rate, freeze_type)
+                    spontaneous_prob = analyze_spontaneous_break(fly_df, offset, next_onset, frame_rate, freeze_type)
+                    
+                    # Store results (only if not NaN)
+                    if not np.isnan(entry_prob):
+                        fly_entry.append(entry_prob)
+                    if not np.isnan(resumption_prob):
+                        fly_resumption.append(resumption_prob)
+                    if not np.isnan(break_prob):
+                        fly_break.append(break_prob)
+                    if not np.isnan(spontaneous_prob):
+                        fly_spontaneous.append(spontaneous_prob)
                 
-                # Store results (only if not NaN)
-                if not np.isnan(entry_prob):
-                    fly_entry.append(entry_prob)
-                if not np.isnan(resumption_prob):
-                    fly_resumption.append(resumption_prob)
-                if not np.isnan(break_prob):
-                    fly_break.append(break_prob)
-                if not np.isnan(spontaneous_prob):
-                    fly_spontaneous.append(spontaneous_prob)
-            
-            # Calculate mean probability for this fly (across all valid looms)
-            results['entry'].append({
-                'group': group,
-                'fly_id': fly_n,
-                'probability': np.mean(fly_entry) if len(fly_entry) > 0 else np.nan,
-                'n_events': len(fly_entry)
-            })
-            
-            results['resumption'].append({
-                'group': group,
-                'fly_id': fly_n,
-                'probability': np.mean(fly_resumption) if len(fly_resumption) > 0 else np.nan,
-                'n_events': len(fly_resumption)
-            })
-            
-            results['break'].append({
-                'group': group,
-                'fly_id': fly_n,
-                'probability': np.mean(fly_break) if len(fly_break) > 0 else np.nan,
-                'n_events': len(fly_break)
-            })
-            
-            results['spontaneous'].append({
-                'group': group,
-                'fly_id': fly_n,
-                'probability': np.mean(fly_spontaneous) if len(fly_spontaneous) > 0 else np.nan,
-                'n_events': len(fly_spontaneous)
-            })
+                # Calculate mean probability for this fly (across all valid looms)
+                results[f'entry_{freeze_type}'].append({
+                    'group': group,
+                    'fly_id': fly_n,
+                    'probability': np.mean(fly_entry) if len(fly_entry) > 0 else np.nan,
+                    'n_events': len(fly_entry)
+                })
+                
+                results[f'resumption_{freeze_type}'].append({
+                    'group': group,
+                    'fly_id': fly_n,
+                    'probability': np.mean(fly_resumption) if len(fly_resumption) > 0 else np.nan,
+                    'n_events': len(fly_resumption)
+                })
+                
+                results[f'break_{freeze_type}'].append({
+                    'group': group,
+                    'fly_id': fly_n,
+                    'probability': np.mean(fly_break) if len(fly_break) > 0 else np.nan,
+                    'n_events': len(fly_break)
+                })
+                
+                results[f'spontaneous_{freeze_type}'].append({
+                    'group': group,
+                    'fly_id': fly_n,
+                    'probability': np.mean(fly_spontaneous) if len(fly_spontaneous) > 0 else np.nan,
+                    'n_events': len(fly_spontaneous)
+                })
             
             fly_n += 1
     
@@ -423,117 +418,145 @@ def analyze_all_flies(rootdir, group_names, loom_info, frame_rate=60):
 
 def plot_probability_violins(results, output_dir, group_names):
     """
-    Create violin plots for all four probability types.
+    Create violin plots for all four probability types across all freeze types.
+    Creates separate figures for 'all', 'labile', and 'resistant' freeze types.
     """
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
-    axes = axes.flatten()
+    freeze_types = ['all', 'labile', 'resistant']
+    freeze_type_labels = {
+        'all': 'All Freezing',
+        'labile': 'Labile Freezing',
+        'resistant': 'Resistant Freezing'
+    }
     
     probability_types = ['entry', 'resumption', 'break', 'spontaneous']
     titles = [
-        'Freezing Entry Probability',
-        'Freezing Resumption Probability',
-        'Freeze Break by Loom Probability',
-        'Spontaneous Break Probability'
+        'Freezing Entry',
+        'Freezing Resumption',
+        'Freeze Break by Loom',
+        'Spontaneous Break'
     ]
     
-    colors=['C0', '#A9CCE3'] # blu and pale blu # Classic blue and orange colors = ['#1f77b4', '#ff7f0e']
+    colors= ['#1f77b4', '#ff7f0e']# blu and pale blu ['C0', '#A9CCE3']  # Classic blue and orange colors = 
     
-    for idx, (prob_type, title) in enumerate(zip(probability_types, titles)):
-        ax = axes[idx]
-        df = results[prob_type]
+    # Create a separate figure for each freeze type
+    for freeze_type in freeze_types:
+        fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+        axes = axes.flatten()
         
-        if len(df) == 0:
-            ax.text(0.5, 0.5, 'No data available', 
-                   ha='center', va='center', fontsize=12)
-            ax.set_title(title, fontsize=14, fontweight='bold')
-            continue
+        fig.suptitle(freeze_type_labels[freeze_type], fontsize=16, fontweight='bold', y=0.995)
         
-        # Create violin plot (without showing default mean/median lines)
-        parts = ax.violinplot(
-            [df[df['group'] == group]['probability'].values for group in group_names],
-            positions=range(len(group_names)),
-            showmeans=False,
-            showmedians=False,
-            showextrema=False,  # Don't show the default quartile bars
-            widths=0.7
-        )
+        for idx, (prob_type, title) in enumerate(zip(probability_types, titles)):
+            ax = axes[idx]
+            key = f'{prob_type}_{freeze_type}'
+            df = results[key]
+            
+            if len(df) == 0:
+                ax.text(0.5, 0.5, 'No data available', 
+                       ha='center', va='center', fontsize=12)
+                ax.set_title(title, fontsize=14, fontweight='bold')
+                continue
+            
+            # Create violin plot (without showing default mean/median lines)
+            parts = ax.violinplot(
+                [df[df['group'] == group]['probability'].values for group in group_names],
+                positions=range(len(group_names)),
+                showmeans=False,
+                showmedians=False,
+                showextrema=False,  # Don't show the default quartile bars
+                widths=0.7
+            )
+            
+            # Color the violins
+            for pc, color in zip(parts['bodies'], colors):
+                pc.set_facecolor(color)
+                pc.set_alpha(0.7)
+            
+            # Add custom median line that is clearly visible
+            for i, group in enumerate(group_names):
+                group_data = df[df['group'] == group]['probability'].values
+                if len(group_data) > 0:
+                    median_val = np.median(group_data)
+                    
+                    # Draw median as thick black solid line
+                    ax.plot([i-0.25, i+0.25], [median_val, median_val], 
+                           color='black', linewidth=1.5, linestyle='-', zorder=3)
+            
+            # Add individual points
+            for i, group in enumerate(group_names):
+                group_data = df[df['group'] == group]['probability'].values
+                x = np.random.normal(i, 0.04, size=len(group_data))
+                ax.scatter(x, group_data, alpha=0.6, s=30, color=colors[i], edgecolors='black', linewidths=0.5)
+            
+            # Formatting
+            ax.set_xticks(range(len(group_names)))
+            labels_with_n = [f'{group} (n={len(df[df["group"] == group])})' for group in group_names]
+            ax.set_xticklabels(labels_with_n, fontsize=12)
+            ax.set_ylabel('Probability', fontsize=14)
+            ax.set_title(title, fontsize=15)
+            ax.set_ylim(-0.05, 1.05)
+            ax.grid(axis='y', alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
         
-        # Color the violins
-        for pc, color in zip(parts['bodies'], colors):
-            pc.set_facecolor(color)
-            pc.set_alpha(0.7)
+        plt.tight_layout()
         
-        # Add custom median line that is clearly visible
-        for i, group in enumerate(group_names):
-            group_data = df[df['group'] == group]['probability'].values
-            if len(group_data) > 0:
-                median_val = np.median(group_data)
-                
-                # Draw median as thick black solid line
-                ax.plot([i-0.25, i+0.25], [median_val, median_val], 
-                       color='black', linewidth=1.5, linestyle='-', zorder=3)
-        
-        # Add individual points
-        for i, group in enumerate(group_names):
-            group_data = df[df['group'] == group]['probability'].values
-            x = np.random.normal(i, 0.04, size=len(group_data))
-            ax.scatter(x, group_data, alpha=0.6, s=30, color=colors[i], edgecolors='black', linewidths=0.5)
-        
-        # Formatting
-        ax.set_xticks(range(len(group_names)))
-        labels_with_n = [f'{group} (n={len(df[df["group"] == group])})' for group in group_names]
-        ax.set_xticklabels(labels_with_n, fontsize=12)
-        ax.set_ylabel('Probability', fontsize=14)
-        ax.set_title(title, fontsize=15)
-        ax.set_ylim(-0.05, 1.05)
-        ax.grid(axis='y', alpha=0.3, linestyle='--')
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
+        # Save figure for this freeze type
+        plt.savefig(os.path.join(output_dir, f'freezing_probabilities_{freeze_type}.png'), dpi=300, bbox_inches='tight')
+        plt.savefig(os.path.join(output_dir, f'freezing_probabilities_{freeze_type}.pdf'), bbox_inches='tight')
+        print(f"\n✓ {freeze_type.capitalize()} freeze violin plots saved")
     
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'freezing_probabilities_violins.png'), dpi=300, bbox_inches='tight')
-    plt.savefig(os.path.join(output_dir, 'freezing_probabilities_violins.pdf'), bbox_inches='tight')
-    print(f"\n✓ Violin plots saved to: {output_dir}")
+    print(f"\n✓ All violin plots saved to: {output_dir}")
     
     return fig
 
 
 def save_summary_statistics(results, output_dir, group_names):
     """
-    Save summary statistics to CSV files.
+    Save summary statistics to CSV files for all freeze types.
     """
+    freeze_types = ['all', 'labile', 'resistant']
+    probability_types = ['entry', 'resumption', 'break', 'spontaneous']
+    
     summary_file = os.path.join(output_dir, 'freezing_probabilities_summary.csv')
     
     with open(summary_file, 'w') as f:
         f.write("FREEZING PROBABILITY ANALYSIS - SUMMARY STATISTICS\n")
         f.write("=" * 80 + "\n\n")
         
-        for prob_type in ['entry', 'resumption', 'break', 'spontaneous']:
-            df = results[prob_type]
+        for freeze_type in freeze_types:
+            f.write(f"\n{'=' * 80}\n")
+            f.write(f"{freeze_type.upper()} FREEZING\n")
+            f.write(f"{'=' * 80}\n")
             
-            f.write(f"\n{prob_type.upper()} PROBABILITY\n")
-            f.write("-" * 80 + "\n")
-            
-            for group in group_names:
-                group_data = df[df['group'] == group]['probability'].values
+            for prob_type in probability_types:
+                key = f'{prob_type}_{freeze_type}'
+                df = results[key]
                 
-                if len(group_data) > 0:
-                    f.write(f"\n{group}:\n")
-                    f.write(f"  N flies: {len(group_data)}\n")
-                    f.write(f"  Mean: {np.mean(group_data):.3f}\n")
-                    f.write(f"  SEM: {np.std(group_data) / np.sqrt(len(group_data)):.3f}\n")
-                    f.write(f"  Median: {np.median(group_data):.3f}\n")
-                    f.write(f"  Min: {np.min(group_data):.3f}\n")
-                    f.write(f"  Max: {np.max(group_data):.3f}\n")
-                else:
-                    f.write(f"\n{group}: No data\n")
-            
-            f.write("\n")
+                f.write(f"\n{prob_type.upper()} PROBABILITY\n")
+                f.write("-" * 80 + "\n")
+                
+                for group in group_names:
+                    group_data = df[df['group'] == group]['probability'].values
+                    
+                    if len(group_data) > 0:
+                        f.write(f"\n{group}:\n")
+                        f.write(f"  N flies: {len(group_data)}\n")
+                        f.write(f"  Mean: {np.mean(group_data):.3f}\n")
+                        f.write(f"  SEM: {np.std(group_data) / np.sqrt(len(group_data)):.3f}\n")
+                        f.write(f"  Median: {np.median(group_data):.3f}\n")
+                        f.write(f"  Min: {np.min(group_data):.3f}\n")
+                        f.write(f"  Max: {np.max(group_data):.3f}\n")
+                    else:
+                        f.write(f"\n{group}: No data\n")
+                
+                f.write("\n")
     
-    # Save individual DataFrames
-    for prob_type in ['entry', 'resumption', 'break', 'spontaneous']:
-        df = results[prob_type]
-        df.to_csv(os.path.join(output_dir, f'{prob_type}_probabilities.csv'), index=False)
+    # Save individual DataFrames for each freeze type and probability type
+    for freeze_type in freeze_types:
+        for prob_type in probability_types:
+            key = f'{prob_type}_{freeze_type}'
+            df = results[key]
+            df.to_csv(os.path.join(output_dir, f'{prob_type}_{freeze_type}_probabilities.csv'), index=False)
     
     print(f"✓ Summary statistics saved to: {summary_file}")
 
@@ -541,10 +564,10 @@ def save_summary_statistics(results, output_dir, group_names):
 #%% ==================== MAIN ANALYSIS ====================
 
 if __name__ == "__main__":
-    # Define groups
-    group_5min = '5min'  # ⚠️ CHANGE THIS to match your filenames
-    group_30sec = '30sec'  # ⚠️ CHANGE THIS to match your filenames
-    group_names = [group_5min, group_30sec]
+    # Define groups    
+    group_1 = 'GFP_RNAi_KK-5'
+    group_2 = 'DH44_RNAi_KK-5'
+    group_names = [group_1, group_2]
     
     frame_rate = 60
     
@@ -567,29 +590,31 @@ if __name__ == "__main__":
     
     print(f"\n📁 Output directory: {output_dir}")
     
-    # Detect loom times
-    loom_info = detect_loom_times(rootdir, group_names, frame_rate)
-    
-    if loom_info is None:
-        print("\n❌ ERROR: Could not detect looms. Exiting...")
-        exit()
     
     # Analyze all flies
-    results = analyze_all_flies(rootdir, group_names, loom_info, frame_rate)
+    results = analyze_all_flies(rootdir, group_names, frame_rate)
     
     # Print quick summary
     print("\n" + "=" * 60)
     print("RESULTS SUMMARY")
     print("=" * 60)
-    for prob_type in ['entry', 'resumption', 'break', 'spontaneous']:
-        print(f"\n{prob_type.upper()}:")
-        for group in group_names:
-            df = results[prob_type]
-            group_data = df[df['group'] == group]['probability'].values
-            if len(group_data) > 0:
-                print(f"  {group}: {np.mean(group_data):.3f} ± {np.std(group_data)/np.sqrt(len(group_data)):.3f} (n={len(group_data)})")
-            else:
-                print(f"  {group}: No data")
+    
+    freeze_types = ['all', 'labile', 'resistant']
+    probability_types = ['entry', 'resumption', 'break', 'spontaneous']
+    
+    for freeze_type in freeze_types:
+        print(f"\n{freeze_type.upper()} FREEZING:")
+        print("-" * 60)
+        for prob_type in probability_types:
+            key = f'{prob_type}_{freeze_type}'
+            print(f"\n{prob_type.upper()}:")
+            for group in group_names:
+                df = results[key]
+                group_data = df[df['group'] == group]['probability'].values
+                if len(group_data) > 0:
+                    print(f"  {group}: {np.mean(group_data):.3f} ± {np.std(group_data)/np.sqrt(len(group_data)):.3f} (n={len(group_data)})")
+                else:
+                    print(f"  {group}: No data")
     
     # Create plots
     plot_probability_violins(results, output_dir, group_names)
@@ -601,3 +626,5 @@ if __name__ == "__main__":
     print("✓ ANALYSIS COMPLETE!")
     print("=" * 60)
     print(f"\nAll results saved to: {output_dir}")
+
+
