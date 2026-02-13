@@ -132,8 +132,8 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60, 
     Criteria:
     - Before loom: DOMINANT behavior (most frequent) in 1sec window IS freezing
     - Before loom: 3 frames immediately before loom onset ARE freezing
-    - During loom: freeze interrupted for at least 3 frames in 750ms window from onset
-    - After loom: DOMINANT behavior in 1sec window after loom offset IS freezing
+    - During loom: freeze interrupted for at least 3 frames in 1.5s window from onset (actually is from loom onset to 1 sec after loom offset)
+    - After loom: DOMINANT behavior in 1sec window after 1 sec from loom offset IS freezing
     
     Parameters:
     -----------
@@ -145,7 +145,6 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60, 
     Returns: 1 if resumption occurred, 0 if not, NaN if criteria not met
     """
     window_1sec = int(frame_rate * 1.0)
-    window_750ms = int(frame_rate * 0.75)
     
     # Check if we have enough data
     if loom_onset < window_1sec or loom_offset + window_1sec >= len(fly_df):
@@ -165,8 +164,8 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60, 
     if not pre_freezing:
         return np.nan  # Doesn't meet pre-loom criteria
     
-    # DURING LOOM CHECK: Look for break in 750ms window from loom onset
-    during_window = fly_df.iloc[loom_onset:min(loom_onset + window_750ms, len(fly_df))]['Behavior'].values
+    # DURING LOOM CHECK: Look for break in 1.5s window from loom onset
+    during_window = fly_df.iloc[loom_onset:min(loom_offset + window_1sec, len(fly_df))]['Behavior'].values
     
     # Check if freeze was interrupted for at least 3 consecutive frames
     broke_freeze = False
@@ -183,8 +182,8 @@ def analyze_freezing_resumption(fly_df, loom_onset, loom_offset, frame_rate=60, 
     if not broke_freeze:
         return np.nan  # Didn't break from freezing during loom
     
-    # POST-LOOM CHECK: 1 sec window after loom offset - get DOMINANT behavior
-    post_window = fly_df.iloc[loom_offset:loom_offset + window_1sec]
+    # POST-LOOM CHECK: from 1 sec window after loom offset - get DOMINANT behavior
+    post_window = fly_df.iloc[loom_offset + window_1sec: loom_offset + window_1sec + window_1sec]
     dominant_post = get_dominant_behavior(post_window)
     
     # If broke during loom, did they resume freezing (DOMINANT)?
@@ -199,7 +198,7 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60,
     Criteria:
     - Before loom: DOMINANT behavior (most frequent) in 1sec window IS freezing
     - Before loom: 3 frames immediately before loom onset ARE freezing
-    - During loom: freeze interrupted for at least 3 frames in 750ms window from onset
+    - During loom: freeze interrupted for at least 3 frames in 1.5s window from onset (actually is from loom onset to 1 sec after loom offset)
     
     Parameters:
     -----------
@@ -211,7 +210,6 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60,
     Returns: 1 if break occurred, 0 if not, NaN if criteria not met
     """
     window_1sec = int(frame_rate * 1.0)
-    window_750ms = int(frame_rate * 0.75)
     
     # Check if we have enough data
     if loom_onset < window_1sec:
@@ -232,7 +230,7 @@ def analyze_freeze_break_by_loom(fly_df, loom_onset, loom_offset, frame_rate=60,
         return np.nan  # Doesn't meet pre-loom criteria
     
     # DURING LOOM CHECK: Look for break in 750ms window from loom onset
-    during_window = fly_df.iloc[loom_onset:min(loom_onset + window_750ms, len(fly_df))]['Behavior'].values
+    during_window = fly_df.iloc[loom_onset:min(loom_offset + window_1sec, len(fly_df))]['Behavior'].values
     
     # Check if freeze was interrupted for at least 3 consecutive frames
     consecutive_non_freeze = 0
@@ -256,7 +254,7 @@ def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=6
     - After loom: DOMINANT behavior (most frequent) in 1sec window after loom offset IS freezing
     - Before next loom: sliding 1sec window shows non-freezing as DOMINANT behavior
     
-    We slide the window frame-by-frame starting from the end of the post-loom window
+    We slide the window frame-by-frame starting from 1sec after the end of the post-loom window
     until we find a window where freezing is no longer dominant, or we reach the next loom.
     
     Parameters:
@@ -284,9 +282,9 @@ def analyze_spontaneous_break(fly_df, loom_offset, next_loom_onset, frame_rate=6
     if not post_freezing:
         return np.nan  # Doesn't meet post-loom criteria
     
-    # SLIDING WINDOW CHECK: From end of post-loom window to next loom
+    # SLIDING WINDOW CHECK: From 1sec after the post-loom window to next loom
     # Slide frame by frame looking for when freezing is no longer DOMINANT
-    start_slide = loom_offset + window_1sec
+    start_slide = loom_offset + window_1sec + window_1sec
     
     # If there's no next loom, use end of data
     if next_loom_onset is None:
@@ -379,28 +377,28 @@ def analyze_all_flies(rootdir, group_names, frame_rate=60):
                 # Calculate mean probability for this fly (across all valid looms)
                 results[f'entry_{freeze_type}'].append({
                     'group': group,
-                    'fly_id': fly_n,
+                    'fly_id': filename, 
                     'probability': np.mean(fly_entry) if len(fly_entry) > 0 else np.nan,
                     'n_events': len(fly_entry)
                 })
                 
                 results[f'resumption_{freeze_type}'].append({
                     'group': group,
-                    'fly_id': fly_n,
+                    'fly_id': filename, 
                     'probability': np.mean(fly_resumption) if len(fly_resumption) > 0 else np.nan,
                     'n_events': len(fly_resumption)
                 })
                 
                 results[f'break_{freeze_type}'].append({
                     'group': group,
-                    'fly_id': fly_n,
+                    'fly_id': filename, 
                     'probability': np.mean(fly_break) if len(fly_break) > 0 else np.nan,
                     'n_events': len(fly_break)
                 })
                 
                 results[f'spontaneous_{freeze_type}'].append({
                     'group': group,
-                    'fly_id': fly_n,
+                    'fly_id': filename, 
                     'probability': np.mean(fly_spontaneous) if len(fly_spontaneous) > 0 else np.nan,
                     'n_events': len(fly_spontaneous)
                 })
@@ -565,9 +563,10 @@ def save_summary_statistics(results, output_dir, group_names):
 
 if __name__ == "__main__":
     # Define groups    
-    group_1 = 'GFP_RNAi_KK-5'
-    group_2 = 'DH44_RNAi_KK-5'
+    group_1 = '5minbase' #'luc_RNAi_TRIP-5'
+    group_2 = '30secbase' #'DH44_RNAi_TRIP-5'
     group_names = [group_1, group_2]
+    #group_names = [group_1]
     
     frame_rate = 60
     
