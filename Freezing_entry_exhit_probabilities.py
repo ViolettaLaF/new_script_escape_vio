@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import tkinter, tkinter.filedialog
 from datetime import datetime
+from scipy.stats import mannwhitneyu
 
 
 def simplify_behaviors(df_try):
@@ -426,15 +427,15 @@ def plot_probability_violins(results, output_dir, group_names):
         'resistant': 'Resistant Freezing'
     }
     
-    probability_types = ['entry', 'resumption', 'break', 'spontaneous']
+    probability_types = ['entry', 'break', 'resumption', 'spontaneous']
     titles = [
         'Freezing Entry',
-        'Freezing Resumption',
         'Freeze Break by Loom',
+        'Freezing Resumption',        
         'Spontaneous Break'
     ]
     
-    colors= ['#1f77b4', '#ff7f0e']# blu and pale blu ['C0', '#A9CCE3']  # Classic blue and orange colors = 
+    colors= ['C0', '#A9CCE3']  #blu and pale blu  ['#1f77b4', '#ff7f0e'] Classic blue and orange color
     
     # Create a separate figure for each freeze type
     for freeze_type in freeze_types:
@@ -477,20 +478,46 @@ def plot_probability_violins(results, output_dir, group_names):
                     
                     # Draw median as thick black solid line
                     ax.plot([i-0.25, i+0.25], [median_val, median_val], 
-                           color='black', linewidth=1.5, linestyle='-', zorder=3)
+                           color='black', linewidth=1.25, linestyle='-', zorder=3)
             
             # Add individual points
             for i, group in enumerate(group_names):
                 group_data = df[df['group'] == group]['probability'].values
                 x = np.random.normal(i, 0.04, size=len(group_data))
                 ax.scatter(x, group_data, alpha=0.6, s=30, color=colors[i], edgecolors='black', linewidths=0.5)
+                
+            # Perform Mann-Whitney U test
+            group1_data = df[df['group'] == group_names[0]]['probability'].values
+            group2_data = df[df['group'] == group_names[1]]['probability'].values
+            
+            if len(group1_data) > 0 and len(group2_data) > 0:
+                try:
+                    statistic, p_value = mannwhitneyu(group1_data, group2_data, alternative='two-sided')
+                    
+                    # Add significance stars
+                    if p_value < 0.001:
+                        sig_text = '***'
+                    elif p_value < 0.01:
+                        sig_text = '**'
+                    elif p_value < 0.05:
+                        sig_text = '*'
+                    else:
+                        sig_text = 'ns'
+                    
+                    # Add p-value text to plot
+                    y_max = ax.get_ylim()[1]
+                    ax.text(0.5, y_max * 0.95, sig_text, 
+                           ha='center', fontsize=14, fontweight='bold')
+                except Exception as e:
+                    print(f"Warning: Could not compute statistics for {key}: {e}")
+
             
             # Formatting
             ax.set_xticks(range(len(group_names)))
             labels_with_n = [f'{group} (n={len(df[df["group"] == group])})' for group in group_names]
             ax.set_xticklabels(labels_with_n, fontsize=12)
-            ax.set_ylabel('Probability', fontsize=14)
-            ax.set_title(title, fontsize=15)
+            ax.set_ylabel('Probability', fontsize=15)
+            ax.set_title(title, fontsize=16)
             ax.set_ylim(-0.05, 1.05)
             ax.grid(axis='y', alpha=0.3, linestyle='--')
             ax.spines['top'].set_visible(False)
@@ -511,12 +538,19 @@ def plot_probability_violins(results, output_dir, group_names):
 def save_summary_statistics(results, output_dir, group_names):
     """
     Save summary statistics to CSV files for all freeze types.
+    Includes Mann-Whitney U test with both raw and Bonferroni-corrected p-values.
     """
+    
     freeze_types = ['all', 'labile', 'resistant']
     probability_types = ['entry', 'resumption', 'break', 'spontaneous']
     
-    summary_file = os.path.join(output_dir, 'freezing_probabilities_summary.csv')
+    # Bonferroni correction factor (12 total comparisons)
+    bonferroni_alpha = 0.05 / 12  # = 0.00417
     
+    summary_file = os.path.join(output_dir, 'freezing_probabilities_summary.csv')
+    stats_file = os.path.join(output_dir, 'statistical_tests.csv')
+    
+    # Save descriptive statistics
     with open(summary_file, 'w') as f:
         f.write("FREEZING PROBABILITY ANALYSIS - SUMMARY STATISTICS\n")
         f.write("=" * 80 + "\n\n")
@@ -548,6 +582,65 @@ def save_summary_statistics(results, output_dir, group_names):
                         f.write(f"\n{group}: No data\n")
                 
                 f.write("\n")
+    
+    # Save statistical tests
+    stats_data = []
+    
+    for freeze_type in freeze_types:
+        for prob_type in probability_types:
+            key = f'{prob_type}_{freeze_type}'
+            df = results[key]
+            
+            # Get data for both groups
+            group1_data = df[df['group'] == group_names[0]]['probability'].values
+            group2_data = df[df['group'] == group_names[1]]['probability'].values
+            
+            if len(group1_data) > 0 and len(group2_data) > 0:
+                try:
+                    # Mann-Whitney U test
+                    statistic, p_value = mannwhitneyu(group1_data, group2_data, alternative='two-sided')
+                    
+                    # Standard significance
+                    if p_value < 0.001:
+                        sig_standard = '***'
+                    elif p_value < 0.01:
+                        sig_standard = '**'
+                    elif p_value < 0.05:
+                        sig_standard = '*'
+                    else:
+                        sig_standard = 'ns'
+                    
+                    # Bonferroni-corrected significance
+                    if p_value < bonferroni_alpha:
+                        sig_bonferroni = 'significant'
+                    else:
+                        sig_bonferroni = 'ns'
+                    
+                    stats_data.append({
+                        'freeze_type': freeze_type,
+                        'probability_type': prob_type,
+                        'group_1': group_names[0],
+                        'group_2': group_names[1],
+                        'n_group_1': len(group1_data),
+                        'n_group_2': len(group2_data),
+                        'mean_group_1': np.mean(group1_data),
+                        'mean_group_2': np.mean(group2_data),
+                        'median_group_1': np.median(group1_data),
+                        'median_group_2': np.median(group2_data),
+                        'U_statistic': statistic,
+                        'p_value': p_value,
+                        'significance_standard': sig_standard,
+                        'bonferroni_alpha': bonferroni_alpha,
+                        'significance_bonferroni': sig_bonferroni
+                    })
+                except Exception as e:
+                    print(f"Warning: Could not compute statistics for {key}: {e}")
+    
+    # Save to CSV
+    if stats_data:
+        stats_df = pd.DataFrame(stats_data)
+        stats_df.to_csv(stats_file, index=False)
+        print(f"✓ Statistical tests saved to: {stats_file}")
     
     # Save individual DataFrames for each freeze type and probability type
     for freeze_type in freeze_types:
