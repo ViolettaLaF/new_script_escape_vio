@@ -50,7 +50,7 @@ def get_dominant_behavior(df_window, behavior_column='Behavior'):
 
 def calculate_clean_speed(fly_df, loom_onset, window_sec=1.0, frame_rate=60):
     """
-    Calculate average speed in window, excluding NaNs, jumps, and 6 frames around jumps.
+    Calculate average speed in window, excluding NaNs and jumps.
     
     Returns: average speed (mm/s) or np.nan if not enough valid data
     """
@@ -65,22 +65,16 @@ def calculate_clean_speed(fly_df, loom_onset, window_sec=1.0, frame_rate=60):
     
     window_df = fly_df.iloc[window_start:window_end].copy()
     
-    # Mask out jumps and 6 frames before/after
+    # Mask out only jump frames
     window_df['valid_speed'] = window_df['Speed'].copy()
     
-    # Find jump frames
-    jump_frames = window_df[window_df['Behavior'] == 'Jump'].index.tolist()
-    
-    # Mask jumps and surrounding frames
-    for jump_frame in jump_frames:
-        mask_start = max(window_start, jump_frame - 6)
-        mask_end = min(window_end, jump_frame + 7)  # +7 to include 6 frames after
-        window_df.loc[mask_start:mask_end, 'valid_speed'] = np.nan
+    # Set jump frames to NaN
+    window_df.loc[window_df['Behavior'] == 'Jump', 'valid_speed'] = np.nan
     
     # Calculate mean of valid speeds
     valid_speeds = window_df['valid_speed'].dropna()
     
-    if len(valid_speeds) < window_frames * 0.5:  # Need at least 50% valid data
+    if len(valid_speeds) < window_frames * 0.2:  # Need at least 20% valid data
         return np.nan
     
     return valid_speeds.mean()
@@ -124,8 +118,12 @@ def analyze_speed_dependent_freezing_entry(rootdir, group_names, frame_rate=60):
         for group in group_names
     }
     
-    # Store all speeds for histogram (only events where entry was possible)
-    speed_distributions = {group: [] for group in group_names}
+    # Store all speeds for histogram - separate for each freeze type and group
+    speed_distributions = {
+        f'{freeze_type}_{group}': [] 
+        for freeze_type in freeze_types 
+        for group in group_names
+    }
     
     print("\n" + "=" * 60)
     print("ANALYZING SPEED-DEPENDENT FREEZING ENTRY")
@@ -196,9 +194,8 @@ def analyze_speed_dependent_freezing_entry(rootdir, group_names, frame_rate=60):
                     results[key][speed_bin]['entry'].append(1.0 if freezing_entry else 0.0)
                     results[key][speed_bin]['total'] += 1
                     
-                    # Store speed for histogram (only for 'all' freeze type to avoid triple counting)
-                    if freeze_type == 'all':
-                        speed_distributions[group].append({'speed': avg_speed, 'bin': speed_bin})
+                    # Store speed for histogram - FOR EACH FREEZE TYPE
+                    speed_distributions[key].append({'speed': avg_speed, 'bin': speed_bin})
     
     # Calculate probabilities
     probabilities = {
@@ -213,8 +210,8 @@ def analyze_speed_dependent_freezing_entry(rootdir, group_names, frame_rate=60):
     
     # Convert speed distributions to DataFrames
     speed_dist_dfs = {
-        group: pd.DataFrame(speeds) if len(speeds) > 0 else pd.DataFrame()
-        for group, speeds in speed_distributions.items()
+        key: pd.DataFrame(speeds) if len(speeds) > 0 else pd.DataFrame()
+        for key, speeds in speed_distributions.items()
     }
     
     return probabilities, results, speed_dist_dfs, speed_bins
@@ -234,7 +231,7 @@ def plot_speed_probability_curves(probabilities, results, speed_bins, group_name
     }
     
     # Assign colors based on actual group names
-    color_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Blue, orange, green, red
+    color_palette = ['C0', '#A9CCE3']  #blu and pale blu ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Blue, orange, green, red
     colors = {group: color_palette[i] for i, group in enumerate(group_names)}
     
     print(f"\nDEBUG - Colors dictionary: {colors}")
@@ -309,58 +306,68 @@ def plot_speed_probability_curves(probabilities, results, speed_bins, group_name
 
 def plot_speed_distributions(speed_dist_dfs, speed_bins, group_names, output_dir):
     """
-    Create histograms showing distribution of speeds (loom counts per speed bin).
-    One histogram per group.
+    Create histograms showing distribution of speeds for each freeze type.
+    One plot per freeze type, with one histogram per group.
     """
     
+    freeze_types = ['all', 'labile', 'resistant']
+    freeze_type_labels = {
+        'all': 'All Freezing',
+        'labile': 'Labile Freezing',
+        'resistant': 'Resistant Freezing'
+    }
+    
     # Assign colors based on actual group names
-    color_palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Blue, orange, green, red
+    color_palette = ['C0', '#A9CCE3']  #blu and pale blu ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Blue, orange, green, red 
     colors = {group: color_palette[i] for i, group in enumerate(group_names)}
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    for idx, group in enumerate(group_names):
-        ax = axes[idx]
-        df = speed_dist_dfs[group]
+    for freeze_type in freeze_types:
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         
-        if len(df) == 0:
-            ax.text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=12)
-            ax.set_title(f'{group}', fontsize=14, fontweight='bold')
-            continue
+        for idx, group in enumerate(group_names):
+            ax = axes[idx]
+            key = f'{freeze_type}_{group}'
+            df = speed_dist_dfs.get(key, pd.DataFrame())
+            
+            if len(df) == 0:
+                ax.text(0.5, 0.5, 'No data', ha='center', va='center', fontsize=12)
+                ax.set_title(f'{group}', fontsize=14, fontweight='bold')
+                continue
+            
+            # Count looms per bin
+            bin_counts = df['bin'].value_counts()
+            
+            # Ensure all bins are present
+            counts = [bin_counts.get(bin_name, 0) for bin_name in speed_bins]
+            
+            # Create bar plot
+            x_positions = range(len(speed_bins))
+            bars = ax.bar(x_positions, counts, color=colors.get(group, 'gray'), alpha=0.7, edgecolor='black')
+            
+            # Add counts on top of bars
+            for x, count in zip(x_positions, counts):
+                if count > 0:
+                    ax.text(x, count + max(counts) * 0.02, str(count), ha='center', fontsize=10, fontweight='bold')
+            
+            # Formatting
+            ax.set_xticks(x_positions)
+            ax.set_xticklabels(speed_bins)
+            ax.set_xlabel('Speed Bin (mm/s)', fontsize=12)
+            ax.set_ylabel('Loom Count', fontsize=12)
+            ax.set_title(f'{group}\n{freeze_type_labels[freeze_type]} - Pre-Loom Speeds', 
+                        fontsize=14, fontweight='bold')
+            ax.grid(axis='y', alpha=0.3, linestyle='--')
+            
+            # Remove top and right spines
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
         
-        # Count looms per bin
-        bin_counts = df['bin'].value_counts()
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, f'speed_distribution_{freeze_type}.png'), dpi=300, bbox_inches='tight')
+        plt.savefig(os.path.join(output_dir, f'speed_distribution_{freeze_type}.pdf'), bbox_inches='tight')
+        plt.close()
         
-        # Ensure all bins are present
-        counts = [bin_counts.get(bin_name, 0) for bin_name in speed_bins]
-        
-        # Create bar plot
-        x_positions = range(len(speed_bins))
-        bars = ax.bar(x_positions, counts, color=colors.get(group, 'gray'), alpha=0.7, edgecolor='black')
-        
-        # Add counts on top of bars
-        for x, count in zip(x_positions, counts):
-            if count > 0:
-                ax.text(x, count + max(counts) * 0.02, str(count), ha='center', fontsize=10, fontweight='bold')
-        
-        # Formatting
-        ax.set_xticks(x_positions)
-        ax.set_xticklabels(speed_bins)
-        ax.set_xlabel('Speed Bin (mm/s)', fontsize=12)
-        ax.set_ylabel('Loom Count', fontsize=12)
-        ax.set_title(f'{group}\nDistribution of Pre-Loom Speeds', fontsize=14, fontweight='bold')
-        ax.grid(axis='y', alpha=0.3, linestyle='--')
-        
-        # Remove top and right spines
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'speed_distribution_histograms.png'), dpi=300, bbox_inches='tight')
-    plt.savefig(os.path.join(output_dir, 'speed_distribution_histograms.pdf'), bbox_inches='tight')
-    plt.close()
-    
-    print("✓ Speed distribution histograms saved")
+        print(f"✓ {freeze_type.capitalize()} speed distribution histogram saved")
 
 
 def save_summary_statistics(probabilities, results, speed_bins, group_names, output_dir):
@@ -402,8 +409,8 @@ def save_summary_statistics(probabilities, results, speed_bins, group_names, out
 
 if __name__ == "__main__":
     # Define groups
-    group_1 = 'GFP_RNAi_KK-30'
-    group_2 = 'DH44_RNAi_KK-30'
+    group_1 = '5minbase' #'luc_RNAi_TRIP-3'
+    group_2 = '30secbase' #'DH44_RNAi_TRIP-3'
     group_names = [group_1, group_2]
     
     frame_rate = 60
