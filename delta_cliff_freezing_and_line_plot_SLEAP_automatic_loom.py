@@ -374,10 +374,10 @@ def plot_behavior_timecourse(timecourse_results, group_names, behavior_type,
 #%% ==================== SETUP AND CONFIGURATION ====================
 
 # Define all groups
-group_a = 'luc_RNAi_TRIP-5minbase'
-group_b = 'luc_RNAi_TRIP-30secbase'
-group_c = 'DH44_RNAi_TRIP-5minbase'
-group_d = 'DH44_RNAi_TRIP-30secbase'
+group_a = 'GFP_RNAi_KK-5min'
+group_b = 'GFP_RNAi_KK-30sec'
+group_c = 'DH44_RNAi_KK-5min'
+group_d = 'DH44_RNAi_KK-30sec'
 
 group_names = [group_a, group_b, group_c, group_d]
 number_of_groups = len(group_names)
@@ -465,23 +465,27 @@ print("\nResistant Freeze:")
 print(df_resist_freeze_all.count())
 
 #%% Analysis 1: comparison within same RNAi - FREEZE
-"""
+
 print("\n--- FREEZE: Baseline comparison (within RNAi) ---")
 multi_2group = dabest.load(df_freeze_all, idx=(
     (group_a, group_b),
     (group_c, group_d)))
 
 fig1 = multi_2group.cliffs_delta.plot(
-    title='Delta Freeze per baseline', 
-    swarmplot_kwargs={"size": 0.2, "alpha": 0.6})
+    title='Delta Labile Freeze per baseline', 
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_Freeze.png"), dpi=300, bbox_inches='tight')
-plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_Freeze.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_LabileF.png"), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_LabileF.pdf"), bbox_inches='tight')
 print("✓ Baseline comparison plot saved")
 
 stats1 = multi_2group.cliffs_delta
 stats1_results = stats1.results.copy()
-stats1_results.to_csv(os.path.join(output_dir, "diff_baseline_comparison_stats_Freeze.csv"))
+stats1_results.to_csv(os.path.join(output_dir, "diff_baseline_comparison_stats_LabileF.csv"))
 print(stats1)
 
 #%% Analysis 2: RNAi comparison within same baseline - FREEZE
@@ -491,20 +495,24 @@ multi_2group_rnai = dabest.load(df_freeze_all, idx=(
     (group_b, group_d)))
 
 fig2 = multi_2group_rnai.cliffs_delta.plot(
-    title='Delta Freeze per RNAi', 
-    swarmplot_kwargs={"size": 0.2, "alpha": 0.6})
+    title='Delta Labile Freeze per RNAi', 
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
-plt.savefig(os.path.join(output_dir, "rnai_comparison_Freeze.png"), dpi=300, bbox_inches='tight')
-plt.savefig(os.path.join(output_dir, "rnai_comparison_Freeze.pdf"), bbox_inches='tight')
+plt.savefig(os.path.join(output_dir, "rnai_comparison_LabileF.png"), dpi=300, bbox_inches='tight')
+plt.savefig(os.path.join(output_dir, "rnai_comparison_LabileF.pdf"), bbox_inches='tight')
 print("✓ RNAi comparison plot saved")
 
 stats2 = multi_2group_rnai.cliffs_delta
 stats2_results = stats2.results.copy()
-stats2_results.to_csv(os.path.join(output_dir, "rnai_comparison_stats_Freeze.csv"))
+stats2_results.to_csv(os.path.join(output_dir, "rnai_comparison_stats_LabileF.csv"))
 print(stats2)
 
 desc_stats = df_freeze_all.describe()
-desc_stats.to_csv(os.path.join(output_dir, "descriptive_statistics_Freeze.csv"))
+desc_stats.to_csv(os.path.join(output_dir, "descriptive_statistics_LabileF.csv"))
 
 #%% Analysis 1: comparison within same RNAi - RESISTANT FREEZE
 print("\n--- RESISTANT FREEZE: Baseline comparison (within RNAi) ---")
@@ -514,7 +522,11 @@ multi_2group_resist = dabest.load(df_resist_freeze_all, idx=(
 
 fig3 = multi_2group_resist.cliffs_delta.plot(
     title='Delta Resistant Freeze per baseline', 
-    swarmplot_kwargs={"size": 0.2, "alpha": 0.6})
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_Resistant_Freeze.png"), dpi=300, bbox_inches='tight')
 plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_Resistant_Freeze.pdf"), bbox_inches='tight')
@@ -533,7 +545,11 @@ multi_2group_rnai_resist = dabest.load(df_resist_freeze_all, idx=(
 
 fig4 = multi_2group_rnai_resist.cliffs_delta.plot(
     title='Delta Resistant Freeze per RNAi', 
-    swarmplot_kwargs={"size": 0.2, "alpha": 0.6})
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "rnai_comparison_Resistant_Freeze.png"), dpi=300, bbox_inches='tight')
 plt.savefig(os.path.join(output_dir, "rnai_comparison_Resistant_Freeze.pdf"), bbox_inches='tight')
@@ -546,7 +562,7 @@ print(stats4)
 
 desc_stats_resist = df_resist_freeze_all.describe()
 desc_stats_resist.to_csv(os.path.join(output_dir, "descriptive_statistics_Resistant_Freeze.csv"))
-"""
+
 #%% ==================== TIMECOURSE PLOTS ====================
 
 print("\n" + "=" * 60)

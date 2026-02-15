@@ -50,10 +50,10 @@ def simplify_behaviors(df_try):
 #%%
 # Define all groups
 
-group_a = 'luc_RNAi_TRIP-5minbase'
-group_b = 'luc_RNAi_TRIP-30secbase'
-group_c = 'DH44_RNAi_TRIP-5minbase'
-group_d = 'DH44_RNAi_TRIP-30secbase'
+group_a = 'GFP_RNAi_KK-5min'
+group_b = 'GFP_RNAi_KK-30sec'
+group_c = 'DH44_RNAi_KK-5min'
+group_d = 'DH44_RNAi_KK-30sec'
 
 group_names  = [group_a,group_b,
                    group_c,group_d] # use the group names as present in each filename (need to be inside the filename)
@@ -110,8 +110,12 @@ multi_2group = dabest.load(df_freeze_all, idx=(
 
 # Plot and save figure
 fig1 = multi_2group.cliffs_delta.plot(
-    title=('Delta ALL_Freeze  per baseline'), 
-    swarmplot_kwargs={"size":0.2, "alpha": 0.6 })
+    title=('Delta Freeze  per baseline'), 
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_ALL_Freeze.png"), dpi=300, bbox_inches='tight')
 plt.savefig(os.path.join(output_dir, "diff_baseline_comparison_ALL_Freeze.pdf"), bbox_inches='tight')
@@ -132,8 +136,12 @@ multi_2group_rnai = dabest.load(df_freeze_all, idx=(
 
 # Plot and save figure
 fig2 = multi_2group_rnai.cliffs_delta.plot(
-    title=('Delta ALL_Freeze per RNAi'), 
-    swarmplot_kwargs={"size":0.2, "alpha": 0.6 })
+    title=('Delta Freeze per RNAi'), 
+    swarmplot_kwargs={"size": 0.2, "alpha": 0.6},
+    custom_palette={group_a: 'C0',           # Blue for 5min
+                    group_b: '#A9CCE3',      # Light blue for 30sec
+                    group_c: 'C1',           # Orange for DH44-5min
+                    group_d: '#FFB366'})      # Light orange for DH44-30sec
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "rnai_comparison_ALL_Freeze.png"), dpi=300, bbox_inches='tight')
 plt.savefig(os.path.join(output_dir, "rnai_comparison_ALL_Freeze.pdf"), bbox_inches='tight')
