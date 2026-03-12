@@ -34,11 +34,11 @@ os.makedirs(plot_path_pdf_escape_plots, exist_ok=True)
 
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
-experiment_name = '5_min_vs_30_sec_base_ctrl' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-group1_file = 'VLF-39347_5min_stacked_bar_summary.csv'
-group2_file = 'VLF-39347_30sec_stacked_bar_summary.csv'
-group1_label = 'Ctrl 5min base'
-group2_label = 'Ctrl 30sec base'
+experiment_name = '39347_tsh_gal80_DH44_RNAi' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_file = '39347_tsh_gal80_GFP_RNAi_stacked_bar_summary.csv'
+group2_file = '39347_tsh_gal80_DH44_RNAi_stacked_bar_summary.csv'
+group1_label = 'GFP_RNAi'
+group2_label = 'DH44_RNAi'
 
 # Load CSVs
 df_group1 = pd.read_csv(os.path.join(plot_path, group1_file))
@@ -207,8 +207,7 @@ def plot_two_groups_comparison(df_group1, df_group2, group1_label, group2_label,
                 else:
                     stars = '*'
                 
-                ax.text((x_positions[0] + x_positions[1])/2, y_pos, stars,
-                       ha='center', va='bottom', fontsize=14)
+                ax.text((x_positions[0] + x_positions[1])/2, y_pos, stars, ha='center', va='bottom', fontsize=20)
             
             y_cumulative_1 += frac1
             y_cumulative_2 += frac2
@@ -217,9 +216,9 @@ def plot_two_groups_comparison(df_group1, df_group2, group1_label, group2_label,
     ax.set_ylim([0, 1.05])
     ax.set_xlim([-0.5, 1.5])
     ax.set_xticks(x_positions)
-    ax.set_xticklabels([group1_label, group2_label], fontsize=18)
-    ax.tick_params(axis='x', labelsize=18)  # Force the size this way
-    ax.set_ylabel('Fraction of loom responses', fontsize=18)
+    ax.set_xticklabels([group1_label, group2_label], fontsize=22)
+    ax.tick_params(axis='x', labelsize=22)  # Force the size this way
+    ax.set_ylabel('Fraction of loom responses', fontsize=22)
     ax.set_yticks(np.arange(0, 1.1, 0.1))
     
     # Title with chi-square result
@@ -227,11 +226,10 @@ def plot_two_groups_comparison(df_group1, df_group2, group1_label, group2_label,
     if stats_results['p_chi'] < 0.05:
         chi_text += " ***"
     
-    ax.set_title(f'{experiment_name} - Group Comparison\n{chi_text}', 
-                fontsize=16, pad=20)
+    ax.set_title(f'{experiment_name} - Group Comparison\n{chi_text}', fontsize=16, pad=20)
     
     # Legend
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=14, frameon=False)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=20, frameon=False)
     
     # Spines
     ax.spines['left'].set_visible(True)
@@ -247,7 +245,7 @@ def plot_two_groups_comparison(df_group1, df_group2, group1_label, group2_label,
     
     # Add footnote with statistical details
     footnote = f"* p < 0.05, ** p < 0.01, *** p < 0.001 (Bonferroni-corrected α = {stats_results['bonferroni_alpha']:.4f})"
-    fig.text(0.5, 0.02, footnote, ha='center', fontsize=9, style='italic')
+    fig.text(0.5, 0.02, footnote, ha='center', fontsize=12, style='italic')
     
     plt.tight_layout(rect=[0, 0.03, 1, 1])
     

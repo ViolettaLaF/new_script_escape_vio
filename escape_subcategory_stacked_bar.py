@@ -22,12 +22,12 @@ from statsmodels.stats.proportion import proportions_ztest
 # PARAMETERS — EDIT HERE
 # ============================================================================
 
-experiment_name   = 'controls_5min_vs_30sec_escape_subcategories'
+experiment_name   = '39347_tsh_gal80_DH44_RNAi_escape_subcategories'
 
-group1_file  = 'VLF-39347_5min_escape_combinations_summary.csv'
-group2_file  = 'VLF-39347_30sec_escape_combinations_summary.csv'
-group1_label = 'controls 5min'
-group2_label = 'controls 30sec'
+group1_file  = '39347_tsh_gal80_GFP_RNAi_escape_combinations_summary.csv'
+group2_file  = '39347_tsh_gal80_DH44_RNAi_escape_combinations_summary.csv'
+group1_label = 'GFP-RNAi'
+group2_label = 'DH44-RNAi'
 
 N_TOP_MIXED = 4   # how many of the most-frequent mixed categories to keep as separate bars
 
@@ -42,8 +42,7 @@ PURE_COLORS = {
 }
 
 MIXED_COLORS = [   # used in order for the top-N mixed categories — earthy reds
-    '#922B21', '#A93226', '#C0392B', '#7B241C',
-]
+    '#922B21', '#A93226', '#C0392B', '#7B241C',]
 
 INFREQ_COLOR = '#5D6D7E'   # dark slate grey — neutral "leftover" category
 
@@ -239,8 +238,7 @@ def perform_statistical_tests(cats1, cats2, total1, total2):
 # PLOTTING
 # ============================================================================
 
-def plot_horizontal_escape_comparison(cats1, cats2, total1, total2,
-                                      group1_label, group2_label,
+def plot_horizontal_escape_comparison(cats1, cats2, total1, total2, group1_label, group2_label,
                                       stats_results, save_path, experiment_name):
     """
     Two horizontal stacked bars (one per group) with significance annotations.
@@ -280,7 +278,7 @@ def plot_horizontal_escape_comparison(cats1, cats2, total1, total2,
             left += frac
 
         ax.set_yticks([0])
-        ax.set_yticklabels([g_label], fontsize=14)
+        ax.set_yticklabels([g_label], fontsize=20)
         ax.set_ylim(-0.6, 0.9)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
@@ -297,7 +295,7 @@ def plot_horizontal_escape_comparison(cats1, cats2, total1, total2,
             ax.spines['bottom'].set_position(('outward', 5))
             ax.tick_params(axis='x', labelsize=14)
 
-    axes[1].set_xlabel('Fraction of escape and mix responses trials', fontsize=16)
+    axes[1].set_xlabel('Fraction of escape and mix responses trials', fontsize=22)
 
     # --- Significance stars between bars
     if stats_results['p_chi'] < 0.05:
@@ -320,7 +318,7 @@ def plot_horizontal_escape_comparison(cats1, cats2, total1, total2,
                     # convert x from data to figure coords (rough, uses axes[0])
                     axes[0].transData.transform([x_mid, 0])[0] / fig.get_figwidth() / fig.dpi,
                     0.495,  # midpoint between the two subplots in figure coords
-                    stars, ha='center', va='center', fontsize=12, color='black',
+                    stars, ha='center', va='center', fontsize=20, color='black',
                     fontweight='bold'
                 )
 
@@ -345,8 +343,7 @@ def plot_horizontal_escape_comparison(cats1, cats2, total1, total2,
             import matplotlib.patches as mpatches
             handles.append(mpatches.Patch(color=cat['color'], label=cat['label']))
 
-    legend_ax.legend(handles=handles, loc='center left', fontsize=13,
-                     frameon=False, title='Category', title_fontsize=14)
+    legend_ax.legend(handles=handles, loc='center left', fontsize=18, frameon=False)
 
     # Footnote
     fig.text(0.38, -0.01,
