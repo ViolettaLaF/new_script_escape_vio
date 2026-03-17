@@ -356,7 +356,7 @@ def analyze_all_flies(rootdir, group_names, frame_rate=60):
                 # Analyze each loom
                 for i in range(len(loom_onset)):
                     onset = loom_onset[i]
-                    offset = loom_offset[i] if i < len(loom_offset) else onset + int(frame_rate * 0.5)
+                    offset = loom_offset[i] if i < len(loom_offset) else onset + LOOM_DURATION_FRAMES
                     next_onset = loom_onset[i + 1] if i + 1 < len(loom_onset) else None
                     
                     # Calculate all probabilities for this freeze type
@@ -435,14 +435,14 @@ def plot_probability_violins(results, output_dir, group_names):
         'Spontaneous Break'
     ]
     
-    colors= ['C0', '#A9CCE3']  #blu and pale blu  ['#1f77b4', '#ff7f0e'] Classic blue and orange color
+    colors= ['#1f77b4', '#ff7f0e'] #Classic blue and orange color #['C0', '#A9CCE3']  #blu and pale blu  
     
     # Create a separate figure for each freeze type
     for freeze_type in freeze_types:
         fig, axes = plt.subplots(2, 2, figsize=(14, 12))
         axes = axes.flatten()
         
-        fig.suptitle(freeze_type_labels[freeze_type], fontsize=16, fontweight='bold', y=0.995)
+        fig.suptitle(freeze_type_labels[freeze_type], fontsize=24, fontweight='bold', y=0.995)
         
         for idx, (prob_type, title) in enumerate(zip(probability_types, titles)):
             ax = axes[idx]
@@ -515,9 +515,9 @@ def plot_probability_violins(results, output_dir, group_names):
             # Formatting
             ax.set_xticks(range(len(group_names)))
             labels_with_n = [f'{group} (n={len(df[df["group"] == group])})' for group in group_names]
-            ax.set_xticklabels(labels_with_n, fontsize=12)
-            ax.set_ylabel('Probability', fontsize=15)
-            ax.set_title(title, fontsize=16)
+            ax.set_xticklabels(labels_with_n, fontsize=19)
+            ax.set_ylabel('Probability', fontsize=22)
+            ax.set_title(title, fontsize=22)
             ax.set_ylim(-0.05, 1.05)
             ax.grid(axis='y', alpha=0.3, linestyle='--')
             ax.spines['top'].set_visible(False)
@@ -656,10 +656,11 @@ def save_summary_statistics(results, output_dir, group_names):
 
 if __name__ == "__main__":
     # Define groups    
-    group_1 = '5minbase' #'luc_RNAi_TRIP-5'
-    group_2 = '30secbase' #'DH44_RNAi_TRIP-5'
+    group_1 = 'GFP_RNAi' #'5minbase' #
+    group_2 = 'DH44_RNAi' #'30secbase' #
     group_names = [group_1, group_2]
     #group_names = [group_1]
+    LOOM_DURATION_FRAMES = 15  # update this for your new dataset
     
     frame_rate = 60
     
