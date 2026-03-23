@@ -25,8 +25,8 @@ import matplotlib.gridspec as gridspec
 
 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
-experiment_name = '39347_tsh_gal80_DH44_RNAi' #'VLF-39347_luc_RNAi_TRIP-5' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
-group1_label = '39347_tsh_gal80_DH44_RNAi' #'VLF-39347_luc_RNAi_TRIP-5'
+experiment_name = '39347_Gtacr1-20Looms' #'VLF-39347_luc_RNAi_TRIP-5' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
+group1_label = '39347_Gtacr1-20Looms' #'VLF-39347_luc_RNAi_TRIP-5'
 
 #arena in mm
 arena_raggio = 15 #in mm
@@ -48,7 +48,7 @@ tot_frame = baseline_frames + stimulation_frames
 
 #Zoom plots window
 number_of_looms= 20
-loom_duration_sec = 0.25 #0.5
+loom_duration_sec = 0.5 #0.25 #0.5
 loom_duration  = int(loom_duration_sec * frame_rate)
 window_loom_responses = int(loom_duration + 60) # 1 sec + stimulus duration - useful for etogramme and speed profile 
 #%%
@@ -850,13 +850,13 @@ else:
     df_behave_charlie = None
 
 
-for filename in sorted(os.listdir(path+'/39347_tsh_gal80_DH44_RNAi/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
+for filename in sorted(os.listdir(path+'/VLF-39347_Gtacr1-20Looms/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
     if not filename.endswith('classified_pose.csv'):
         continue
     capital_x = filename.replace('X','x')
     if experiment_name not in capital_x:
         continue
-    df_try = pd.read_csv(path+'/39347_tsh_gal80_DH44_RNAi/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation', 'View', 'Behavior'])
+    df_try = pd.read_csv(path+'/VLF-39347_Gtacr1-20Looms/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation', 'View', 'Behavior'])
 
     # Add Charlie behavior data to df_try if available
     if df_behave_charlie is not None:
@@ -1966,9 +1966,9 @@ def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name
     unique_fg_behaviors = [b for b in unique_fg_behaviors if pd.notna(b)]
     
     fg_behavior_to_num = {beh: i+1 for i, beh in enumerate(sorted(set(unique_fg_behaviors)))}
-    fg_numeric = ethogram_fg.replace(fg_behavior_to_num)
+    fg_numeric = ethogram_fg.replace(fg_behavior_to_num).apply(pd.to_numeric, errors='coerce')
     
-    bg_numeric = ethogram_bg.replace({'Run': 1}).fillna(0)
+    bg_numeric = ethogram_bg.replace({'Run': 1}).fillna(0).apply(pd.to_numeric, errors='coerce').fillna(0)
     
     # Plot background
     ax.imshow(bg_numeric.values, aspect='auto', 
