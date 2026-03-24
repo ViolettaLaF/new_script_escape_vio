@@ -374,10 +374,10 @@ def plot_behavior_timecourse(timecourse_results, group_names, behavior_type,
 #%% ==================== SETUP AND CONFIGURATION ====================
 
 # Define all groups
-group_a = 'GFP_RNAi_KK-5min'
-group_b = 'GFP_RNAi_KK-30sec'
-group_c = 'DH44_RNAi_KK-5min'
-group_d = 'DH44_RNAi_KK-30sec'
+group_a = 'Tsh_Empty_Gtacr1-20Looms'
+group_b = 'Tsh_Empty_Gtacr1-green_LED'
+group_c = 'Tsh_39347_Gtacr1-20Looms'
+group_d = 'Tsh_39347_Gtacr1-green_LED'
 
 group_names = [group_a, group_b, group_c, group_d]
 number_of_groups = len(group_names)
@@ -415,11 +415,6 @@ print(f"Groups: {group_names}")
 loom_info = detect_loom_times(rootdir, group_names, frame_rate)
 loom_times = loom_info['loom_times']
 baseline_frames_dict = loom_info['baseline_frames']
-
-# For backward compatibility, also set the baseline frame variables
-# These are used in the Cliff's delta analysis
-baseline_frames_group1 = baseline_frames_dict.get(group_a, 300 * frame_rate)  # Default to 5 min
-baseline_frames_group2 = baseline_frames_dict.get(group_b, 30 * frame_rate)   # Default to 30 sec
 
 # Create baseline_durations dict for convenience (in seconds)
 baseline_durations = {k: v/frame_rate for k, v in baseline_frames_dict.items()}
