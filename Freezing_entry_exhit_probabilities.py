@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*- #can be used for 2 groups of different baseline lenght 
 """
-5min vs 30sec
 Simplified for 2 groups only: comparing probability of freezing exhit and entry 
 """
 
@@ -454,21 +453,30 @@ def plot_probability_violins(results, output_dir, group_names):
                        ha='center', va='center', fontsize=12)
                 ax.set_title(title, fontsize=14, fontweight='bold')
                 continue
+            #need to be in this indent 
+            # Filter out groups with no data for violin plot
+            violin_data = []
+            violin_positions = []
+            violin_colors = []
+            for i, (group, color) in enumerate(zip(group_names, colors)):
+                group_data = df[df['group'] == group]['probability'].values
+                if len(group_data) > 0:
+                    violin_data.append(group_data)
+                    violin_positions.append(i)
+                    violin_colors.append(color)
             
-            # Create violin plot (without showing default mean/median lines)
-            parts = ax.violinplot(
-                [df[df['group'] == group]['probability'].values for group in group_names],
-                positions=range(len(group_names)),
-                showmeans=False,
-                showmedians=False,
-                showextrema=False,  # Don't show the default quartile bars
-                widths=0.7
-            )
-            
-            # Color the violins
-            for pc, color in zip(parts['bodies'], colors):
-                pc.set_facecolor(color)
-                pc.set_alpha(0.7)
+            if len(violin_data) > 0:
+                parts = ax.violinplot(
+                    violin_data,
+                    positions=violin_positions,
+                    showmeans=False,
+                    showmedians=False,
+                    showextrema=False,
+                    widths=0.7)
+                # Color the violins
+                for pc, color in zip(parts['bodies'], violin_colors):
+                    pc.set_facecolor(color)
+                    pc.set_alpha(0.7)
             
             # Add custom median line that is clearly visible
             for i, group in enumerate(group_names):
@@ -656,11 +664,11 @@ def save_summary_statistics(results, output_dir, group_names):
 
 if __name__ == "__main__":
     # Define groups    
-    group_1 = 'GFP_RNAi' #'5minbase' #
-    group_2 = 'DH44_RNAi' #'30secbase' #
+    group_1 = '7_Gtacr1-20' #'5minbase' #
+    group_2 = '7_Gtacr1-g' #'30secbase' #
     group_names = [group_1, group_2]
     #group_names = [group_1]
-    LOOM_DURATION_FRAMES = 15  # update this for your new dataset
+    LOOM_DURATION_FRAMES = 30 #15  # update this for your new dataset
     
     frame_rate = 60
     
