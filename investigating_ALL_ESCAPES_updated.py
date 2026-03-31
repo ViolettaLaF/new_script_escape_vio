@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-  at the moment try to do things separately for 'Floor_Turn' and 'Turn' (Turn = wall turn)
 """
 Created on Wed Nov 11 19:16:08 2020
-
+ 
 @author: Violetta
 """
-
+ 
 import tkinter, tkinter.filedialog
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,20 +22,25 @@ import pickle
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
-
-
+ 
+ 
 #CHANGE EXPT NAME AND GROUP LABELS BELOW
 experiment_name = '39347_Gtacr1-20Looms' #'VLF-39347_luc_RNAi_TRIP-5' #'VLF-39347_tsh_gal80_DH44_RNAi_TRIP-5min'
 group1_label = '39347_Gtacr1-20Looms' #'VLF-39347_luc_RNAi_TRIP-5'
-
+ 
+# ── GLMM METADATA: change these for each group/condition before running ───────
+genotype  = 'DH44_GTAcr1'   # options: 'Empty_GTAcr1' or 'DH44_GTAcr1'
+treatment = 'LED_off'         # options: 'LED_off' or 'LED_on'
+# ─────────────────────────────────────────────────────────────────────────────
+ 
 #arena in mm
 arena_raggio = 15 #in mm
 arena_center_x = 15 
 arena_center_y = 15
-
+ 
 #TIME SCALES
 frame_rate = 60
-
+ 
 #EXPERIMENT DURATION (in sec)
 baseline  = 300 #30
 stimulation = 300
@@ -45,7 +50,7 @@ total_duration_min = (baseline + stimulation) / 60
 baseline_frames = baseline * frame_rate
 stimulation_frames = stimulation * frame_rate
 tot_frame = baseline_frames + stimulation_frames
-
+ 
 #Zoom plots window
 number_of_looms= 20
 loom_duration_sec = 0.5 #0.25 #0.5
@@ -100,16 +105,16 @@ def remove_turn_backwards_bouts_overlapping_with_jumps(df_try):
         print(f"  Removed {total_bouts_removed} bouts ({total_frames_replaced} frames) of Turn/Backwards overlapping with Jump")
     
     return df_try
-
-
+ 
+ 
 def get_dominant_behavior(df_window, behavior_column='Charlie_Behavior'):
     """Get the most frequent behavior in a window."""
     behavior_counts = df_window[behavior_column].value_counts()
     if len(behavior_counts) == 0:
         return None
     return behavior_counts.index[0]
-
-
+ 
+ 
 def check_dominant_stationary_or_freeze(df_window, behavior_column='Charlie_Behavior'):
     """
     Check if Stationary + Freeze frames are dominant in the window.
@@ -133,7 +138,7 @@ def check_dominant_stationary_or_freeze(df_window, behavior_column='Charlie_Beha
     max_other = max([behavior_counts[b] for b in other_behaviors])
     
     return stationary_freeze_count > max_other
-
+ 
 #%%
 def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_Behavior'):
     """
@@ -188,8 +193,8 @@ def identify_behavior_bouts(df, behavior_label='Turn', behavior_column='Charlie_
     })
     
     return bouts
-
-
+ 
+ 
 #%%
 def analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn'):
     """
@@ -244,8 +249,8 @@ def analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavi
             'std_duration': np.std(stimulation_durations) if stimulation_durations else 0
         }
     }
-
-
+ 
+ 
 def save_bout_statistics(bout_data, group_name, save_path):
     """
     Save bout statistics to a CSV file.
@@ -266,7 +271,7 @@ def save_bout_statistics(bout_data, group_name, save_path):
     print(f"Statistics saved to: {save_path + group_name}_bout_statistics.csv")
     
     return df_stats    
-
+ 
 #%%
 def plot_bout_analysis(bout_data, group_name, save_path):
     """
@@ -333,17 +338,17 @@ def plot_bout_analysis(bout_data, group_name, save_path):
     plt.tight_layout()
     plt.savefig(plot_path+"/"+str(experiment_name) + '_bout_analysis_Turn.jpeg', bbox_inches='tight', dpi=300)
     plt.show() 
-
+ 
 # Usage example: commenting just because I don't need right now but is correct!
 #bout_analysis = analyze_bout_distribution(all_flies_data_with_looms, baseline_frames, behavior_label='Turn')
-
+ 
 # Save statistics
 #stats_df = save_bout_statistics(bout_analysis, group1_label, plot_path)
 #print(stats_df)
-
+ 
 # Create plots
 #plot_bout_analysis(bout_analysis, group1_label, plot_path)
-
+ 
 # Print summary
 #print(f"\nBaseline: {bout_analysis['baseline']['total_bouts']} total bouts, mean duration: {bout_analysis['baseline']['mean_duration']:.2f} frames")
 #print(f"Stimulation: {bout_analysis['stimulation']['total_bouts']} total bouts, mean duration: {bout_analysis['stimulation']['mean_duration']:.2f} frames")  
@@ -446,8 +451,8 @@ def create_ethogram_data_aligned(all_flies_data_with_looms, variable, loom_indic
     df_ethogram.index.name = 'trial'
     
     return df_ethogram, trial_metadata
-
-
+ 
+ 
 def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_name,
                                  frames_before=120, frames_after=150, frame_rate=60, 
                                  loom_duration_frames=loom_duration,
@@ -645,8 +650,8 @@ def plot_ethogram_raster_aligned(ethogram_data, trial_metadata, variable, group_
             print(f"Error saving figure: {e}")
     
     plt.show()
-
-
+ 
+ 
 # Example filter functions TO FILTER DATA THAT WILL BE DISPLAYED IN THE ETOGRAMME 
 def filter_turns_in_window(df_try, loom_start, window_start, window_end):
     """
@@ -655,8 +660,8 @@ def filter_turns_in_window(df_try, loom_start, window_start, window_end):
     window_data = df_try.loc[window_start:window_end]
     has_turn = (window_data['Charlie_Behavior'] == 'Turn').any() #change to Floor_Turn if you want Floor turn 
     return has_turn
-
-
+ 
+ 
 def filter_jumps_in_window(df_try, loom_start, window_start, window_end):
     """
     Filter function: Include only trials where fly jumped during the window.
@@ -664,8 +669,8 @@ def filter_jumps_in_window(df_try, loom_start, window_start, window_end):
     window_data = df_try.loc[window_start:window_end]
     has_jump = (window_data['Charlie_Behavior'] == 'Jump').any()
     return has_jump
-
-
+ 
+ 
 def filter_speed_threshold(df_try, loom_start, window_start, window_end, min_speed=10):
     """
     Filter function: Include only trials where fly exceeded speed threshold.
@@ -674,31 +679,31 @@ def filter_speed_threshold(df_try, loom_start, window_start, window_end, min_spe
     exceeded_threshold = (window_data['Speed'] > min_speed).any()
     return exceeded_threshold
 """
-
+ 
 # Example usage:
-
+ 
 # Define parameters
 loom_indices = list(range(20))  # First 5 looms
 frames_before = 120  # 2 seconds before
 frames_after = 120   # 2 seconds after
 loom_duration_frames = 30  # 0.5 seconds
-
+ 
 # ALL TRIALS - no filter
 #ethogram_all, metadata_all = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=None  ) # No filter
 #plot_ethogram_raster_aligned(ethogram_all, metadata_all, 'Charlie_Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_all_trials.png')
-
+ 
 # ONLY TRIALS WITH TURNS
 ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
 plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'Charlie_Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_turns_only.png')
 #View
 ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='View', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
 plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'View', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_View_turns_only.png')
-
+ 
 #original behaviour 'Behavior'
 ethogram_turns, metadata_turns = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Behavior', loom_indices=loom_indices, frames_before=frames_before, frames_after=frames_after, filter_func=filter_turns_in_window) # Only include trials with turns
 plot_ethogram_raster_aligned(ethogram_turns, metadata_turns, 'Behavior', group1_label, frames_before, frames_after, frame_rate, loom_duration_frames, save_path=plot_path + '/ethogram_original_behav_turns_only.png')
-
-
+ 
+ 
 # ONLY TRIALS WITH JUMPS
 ethogram_jumps, metadata_jumps = create_ethogram_data_aligned(
     all_flies_data_with_looms, 
@@ -708,17 +713,17 @@ ethogram_jumps, metadata_jumps = create_ethogram_data_aligned(
     frames_after=frames_after,
     filter_func=filter_jumps_in_window
 )
-
+ 
 plot_ethogram_raster_aligned(
     ethogram_jumps, metadata_jumps, 'Charlie_Behavior', group1_label,
     frames_before, frames_after, frame_rate, loom_duration_frames,
     save_path=plot_path + '/ethogram_jumps_only.png'
 )
-
+ 
 # CUSTOM FILTER - High speed trials
 def filter_high_speed(df_try, loom_start, window_start, window_end):
     return filter_speed_threshold(df_try, loom_start, window_start, window_end, min_speed=15)
-
+ 
 ethogram_speed, metadata_speed = create_ethogram_data_aligned(
     all_flies_data_with_looms, 
     variable='Speed',
@@ -727,13 +732,13 @@ ethogram_speed, metadata_speed = create_ethogram_data_aligned(
     frames_after=frames_after,
     filter_func=filter_high_speed
 )
-
+ 
 plot_ethogram_raster_aligned(
     ethogram_speed, metadata_speed, 'Speed', group1_label,
     frames_before, frames_after, frame_rate, loom_duration_frames,
     save_path=plot_path + '/ethogram_high_speed_trials.png'
 )
-
+ 
 """
  #%% TO SORT ETOGRAMME DATA BASED ON BEHAVIOUR, SPEED ETC 
 def sort_ethogram_simple(ethogram_data, sort_by='turn_count', frames_before=60, 
@@ -790,25 +795,25 @@ def sort_ethogram_simple(ethogram_data, sort_by='turn_count', frames_before=60,
 # Example usage:
 # Step 1: Create filtered ethograms for all variables you want
 ethogram_charlie_behavior, metadata = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Charlie_Behavior',loom_indices=list(range(20)), frames_before=120, frames_after=150, filter_func=filter_turns_in_window)
-
+ 
 ethogram_behavior, _ = create_ethogram_data_aligned(all_flies_data_with_looms, variable='Behavior', loom_indices=list(range(20)), frames_before=120, frames_after=120, filter_func=filter_turns_in_window  # Same filter!)
-
+ 
 ethogram_view, _ = create_ethogram_data_aligned(all_flies_data_with_looms, variable='View',loom_indices=list(range(20)), frames_before=120, frames_after=120, filter_func=filter_turns_in_window  # Same filter!)
-
+ 
 # Step 2: Sort the BEHAVIOR ethogram and get the sorting indices
 ethogram_sorted_charlie_behavior, sort_indices = sort_ethogram_simple(ethogram_charlie_behavior, sort_by='turn_count', frames_before=120, loom_duration_frames=30)
-
+ 
 # Step 3: Apply THE SAME sorting indices to ALL other variables
 ethogram_sorted_behavior = ethogram_behavior.iloc[sort_indices].reset_index(drop=True)
 ethogram_sorted_view = ethogram_view.iloc[sort_indices].reset_index(drop=True)
-
+ 
 # Step 4: Plot everything with the same sorting
 plot_ethogram_raster_aligned(ethogram_sorted_charlie_behavior, metadata, 'Charlie_Behavior', group1_label, 120, 120, 60, 30, save_path=plot_path + '/behavior_sorted_by_Turn.png')
-
+ 
 plot_ethogram_raster_aligned(ethogram_sorted_behavior, metadata, 'Behavior', group1_label, 120, 120, 60, 30, save_path=plot_path + '/original_Behavior_sorted_by_Turn.png')
-
+ 
 plot_ethogram_raster_aligned(ethogram_sorted_view, metadata, 'View', group1_label, 120, 120, 60, 30, save_path=plot_path + '/view_sorted_by_Turn.png')
-
+ 
 """
 #%%
 def load_path():
@@ -817,30 +822,36 @@ def load_path():
     root.destroy()
     return filename
 exp_path = load_path()
-
+ 
 plot_path = exp_path + '/plots'
 plot_path_pdf = exp_path + '/plots_pdf'
-
+ 
 plot_path_escape_plots = exp_path + '/plots/escape_plots'
 plot_path_pdf_escape_plots = exp_path + '/plots_pdf/escape_plots'
-
+ 
 # ADD THIS - Create directories if they don't exist
 os.makedirs(plot_path, exist_ok=True)
 os.makedirs(plot_path_pdf, exist_ok=True)
 os.makedirs(plot_path_escape_plots, exist_ok=True)
 os.makedirs(plot_path_pdf_escape_plots, exist_ok=True)
-
-
+ 
+ 
 all_flies_data_with_looms = [] #is a list of tupla: with the df_try and an array with loom onset for every fly!
 #all_flies_data_with_fake_looms = [] #is a list of tupla: with the df_try and an array with fake loom onset (same inter loom interval but during baseline) for every fly!
+ 
+# ── GLMM: initialise row collectors ──────────────────────────────────────────
+loom_rows   = []   # df1: one row per fly × loom (all looms)
+escape_rows = []   # df2: one row per fly × loom (escape + mix only)
+# ─────────────────────────────────────────────────────────────────────────────
+ 
 #%%
 '''upload scored file'''
-
+ 
 df_all = pd.DataFrame()
-
+ 
 path = exp_path
 jump_velocity = 75
-
+ 
 behavior_files = [f for f in os.listdir(path) if group1_label in f and f.endswith('_Behavior.csv')] #loading Charlie's analysis on behaviours to have backwards and turns included as escape!!
 if behavior_files:                                                                                  #NB. _Behavior.csv need to contain group1_label otherwise will not find it!
     df_behave_charlie = pd.read_csv(os.path.join(path, behavior_files[0]))
@@ -848,16 +859,16 @@ if behavior_files:                                                              
 else:
     print(f"Warning: No _Behavior.csv file found containing '{group1_label}'!")
     df_behave_charlie = None
-
-
-for filename in sorted(os.listdir(path+'/VLF-39347_Gtacr1-20Looms/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
+ 
+ 
+for filename in sorted(os.listdir(path+'/VLF-Tsh_39347_Gtacr1-20Looms/')): #NB. to change here with the names of the folder where the classified_pose.csv are!!  es:path+'/DH44_RNAi/'
     if not filename.endswith('classified_pose.csv'):
         continue
     capital_x = filename.replace('X','x')
     if experiment_name not in capital_x:
         continue
-    df_try = pd.read_csv(path+'/VLF-39347_Gtacr1-20Looms/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation', 'View', 'Behavior'])
-
+    df_try = pd.read_csv(path+'/VLF-Tsh_39347_Gtacr1-20Looms/'+filename, usecols=['FrameIndex', 'VisualStim', 'Position_X', 'Position_Y', 'Speed', 'Orientation', 'View', 'Behavior'])
+ 
     # Add Charlie behavior data to df_try if available
     if df_behave_charlie is not None:
         # Find the column that ends with the current filename (ignoring path prefix)
@@ -908,14 +919,6 @@ for filename in sorted(os.listdir(path+'/VLF-39347_Gtacr1-20Looms/')): #NB. to c
     # Mark frames with jumps as NaN
     df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'walk_velocity_clean'] = np.nan 
     df_try.loc[(df_try['Charlie_Behavior'] == 'Jump'), 'speed2d_clean'] = np.nan 
-    # Also remove frames right before and after jump (they're often artifacts) #now removing 6 frames before and after
-    #for idx in df_try[df_try['Charlie_Behavior'] == 'Jump'].index: #maybe I should remove that as for the new scoring Matheus is already cleaning for that 
-    #    if idx >= 6:
-    #        df_try.loc[idx-6:idx-1, 'walk_velocity_clean'] = np.nan
-    #        df_try.loc[idx-6:idx-1, 'speed2d_clean'] = np.nan
-    #    if idx <= len(df_try) - 7:
-    #        df_try.loc[idx+1:idx+6, 'walk_velocity_clean'] = np.nan
-    #        df_try.loc[idx+1:idx+6, 'speed2d_clean'] = np.nan
     # Step 2: Apply running average (7 frames) - NaNs will be skipped
     df_try['velocity_smooth'] = df_try['walk_velocity_clean'].rolling(window=7, center=True, min_periods=1).mean()
     df_try['speed2d_smooth'] = df_try['speed2d_clean'].rolling(window=7, center=True, min_periods=1).mean()       
@@ -993,7 +996,62 @@ for filename in sorted(os.listdir(path+'/VLF-39347_Gtacr1-20Looms/')): #NB. to c
                 
                 if pre_is_stationary_freeze and post_dominant == 'Walk':
                     df_try.loc[loom_offset[i], 'walk_away'] = 1  
-    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets) 
+ 
+    all_flies_data_with_looms.append((df_try, loom_onset))  # Store as tuple of (dataframe, loom_onsets)
+ 
+    # ── GLMM: collect rows for this fly ──────────────────────────────────────
+    fly_id = filename   # full filename, no path — keeps link to original file
+ 
+    escape_cols_detail  = ['esc_jump', 'esc_run', 'backwards',
+                           'esc_turn_wall', 'esc_turn_floor', 'walk_away']
+    escape_labels_detail = ['Jump', 'Run', 'Backwards',
+                            'Turn_Wall', 'Turn_Floor', 'Walk_Away']
+ 
+    for i in range(len(loom_onset)):
+        offset = loom_offset[i]
+ 
+        # df1 response: mutually exclusive categories (same logic as df_all below)
+        has_esc = int(df_try.loc[offset, escape_cols_detail].sum() > 0)
+        has_frz = int(df_try.loc[offset, 'freeze'] == 1)
+ 
+        if has_esc and has_frz:
+            response = 'mix'
+        elif has_esc:
+            response = 'escape'
+        elif has_frz:
+            response = 'freeze'
+        else:
+            response = 'other'
+ 
+        loom_rows.append(dict(
+            fly_id      = fly_id,
+            genotype    = genotype,
+            treatment   = treatment,
+            loom_number = i + 1,
+            response    = response
+        ))
+ 
+        # df2: escape + mix rows only — combination string following
+        #      analyze_escape_combinations_active_only logic
+        if response in ('escape', 'mix'):
+            active = []
+            for col, label in zip(escape_cols_detail, escape_labels_detail):
+                if df_try.loc[offset, col] == 1:
+                    active.append(label)
+            if has_frz:
+                active.append('Freeze')
+            combination = ' + '.join(sorted(active))  # alphabetical = consistent across groups
+ 
+            escape_rows.append(dict(
+                fly_id             = fly_id,
+                genotype           = genotype,
+                treatment          = treatment,
+                loom_number        = i + 1,
+                response           = response,
+                escape_combination = combination
+            ))
+    # ─────────────────────────────────────────────────────────────────────────
+ 
 #%%
 for df_try, loom_onset in all_flies_data_with_looms:
     loom_offset = df_try.loc[df_try['VisualStim'].diff() == 1].index.values.astype(int)
@@ -1004,41 +1062,41 @@ for df_try, loom_onset in all_flies_data_with_looms:
     df_loom = df_loom.reset_index(drop=True)
     
     df_all = pd.concat([df_all, df_loom])
-
+ 
 df_all = df_all.reset_index(drop=True)
-
+ 
 #%% CREATE MUTUALLY EXCLUSIVE CATEGORIES
-
+ 
 # Step 1: Calculate basic indicators
 escape_cols = ['esc_turn_wall', 'esc_turn_floor', 'esc_run', 'esc_jump', 'backwards', 'walk_away']
 has_escape = (df_all[escape_cols].sum(axis=1) > 0).astype(int)
 has_freeze = df_all['freeze']
-
+ 
 # Step 2: Create MUTUALLY EXCLUSIVE categories
 df_all['mix_responses'] = ((has_escape == 1) & (has_freeze == 1)).astype(int)
 df_all['escape_only'] = ((has_escape == 1) & (has_freeze == 0)).astype(int)
 df_all['freeze_only'] = ((has_escape == 0) & (has_freeze == 1)).astype(int)
 df_all['esc_none'] = ((has_escape == 0) & (has_freeze == 0)).astype(int)
-
+ 
 # Verification
 df_all['check_sum'] = (df_all['mix_responses'] + df_all['escape_only'] + 
                        df_all['freeze_only'] + df_all['esc_none'])
 print(f"Check: All sums = 1? {(df_all['check_sum'] == 1).all()}")
-
+ 
 # Add loom index
 df_all['loom_index'] = df_all.index % 20
-
+ 
 #%% GROUP BY LOOM AND CALCULATE FRACTIONS
-
+ 
 df_grouped = df_all.groupby('loom_index').mean()
 df_grouped['loom'] = range(len(df_grouped))
-
+ 
 # Verify fractions sum to 1
 df_grouped['fraction_sum'] = (df_grouped['mix_responses'] + df_grouped['escape_only'] + df_grouped['freeze_only'] + df_grouped['esc_none'])
 print(f"\nAll fractions sum to 1.0? {np.allclose(df_grouped['fraction_sum'], 1.0)}")
-
+ 
 #%% UPDATED PLOTTING FUNCTION
-
+ 
 def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
     """
     Plot escape responses across looms.   
@@ -1097,10 +1155,10 @@ def plot_escape_updated(df_grouped, n_flies, group_name, save_path):
     plt.savefig(f"{escape_pdf_path}/{group_name}_grouped_behaviour.pdf", bbox_inches='tight', format='pdf')    
     plt.show()
 #%% CALL THE PLOTTING FUNCTION
-
+ 
 # Calculate number of flies
 n_flies = len(all_flies_data_with_looms)
-
+ 
 # Plot
 plot_escape_updated(df_grouped, n_flies, group1_label, plot_path)
 #%%
@@ -1151,11 +1209,9 @@ def plot_stacked_bar_aggregated_with_csv(df_all, group_name, save_path):
     
     bottom = 0
     for i, (cat, frac, color) in enumerate(zip(categories, fractions, colors)):
-        #ax.bar(0, frac, bottom=bottom, color=color, edgecolor='black', linewidth=0.5, label=cat, width=0.6)
         ax.bar(0, frac, bottom=bottom, color=color, label=cat, width=0.6)
         
         if frac > 0.02:
-            #ax.text(0, bottom + frac/2, f'{frac*100:.1f}%', ha='center', va='center', fontsize=14, fontweight='bold', color='white' if frac > 0.1 else 'black') 
             ax.text(0, bottom + frac/2, f'{frac*100:.1f}%', ha='center', va='center', fontsize=14, fontweight='bold', color='white')        
         bottom += frac
     
@@ -1213,7 +1269,7 @@ def plot_stacked_bar_aggregated_with_csv(df_all, group_name, save_path):
 # Save summary with CSV
 df_summary = plot_stacked_bar_aggregated_with_csv(df_all, group1_label, plot_path)
 #%% Plot Speed Profiles by Escape Type (raw speed no binning data!!)
-
+ 
 def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path, 
                                frames_before=60, frames_after=window_loom_responses, 
                                frame_rate=60, loom_duration_frames=loom_duration):
@@ -1297,8 +1353,8 @@ def plot_escape_speed_profiles(all_flies_data_with_looms, group_name, save_path,
     print("\n=== Escape Type Summary ===")
     for etype, label in escape_types.items():
         print(f"{label}: {escape_counts[etype]} occurrences")
-
-
+ 
+ 
 # Call the function! commented now just because I don't need it 
 plot_escape_speed_profiles(all_flies_data_with_looms, group1_label, plot_path)
 #%%
@@ -1347,8 +1403,8 @@ def analyze_escape_combinations(all_flies_data_with_looms, baseline_frames):
                 combination_counts[combination_name] = 1
     
     return combination_counts, total_looms, no_response_count
-
-
+ 
+ 
 def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, save_path, baseline_frames):
     """
     Plot stacked bar showing all escape response combinations.
@@ -1470,8 +1526,8 @@ def plot_escape_combination_stacked_bar(all_flies_data_with_looms, group_name, s
     print(f"Total mixed responses: {sum(mixed_responses.values())} ({sum(mixed_responses.values())/total_looms*100:.1f}%)")
     
     return all_combinations, pure_responses, mixed_responses
-
-
+ 
+ 
 # Usage:
 combinations, pure, mixed = plot_escape_combination_stacked_bar(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
 #%%
@@ -1525,8 +1581,8 @@ def analyze_escape_combinations_active_only(all_flies_data_with_looms, baseline_
                     combination_counts[combination_name] = 1
     
     return combination_counts, total_looms, no_response_count, freeze_only_count
-
-
+ 
+ 
 def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group_name, save_path, baseline_frames):
     """
     Plot stacked bar showing all ACTIVE escape response combinations.
@@ -1689,17 +1745,17 @@ def plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, g
     print(f"\n✓ Saved to CSV")
     
     return all_combinations, pure_responses, mixed_responses
-
-
+ 
+ 
 # Usage for ACTIVE ONLY version (excludes freeze-only):
 combinations_active, pure_active, mixed_active = plot_escape_combination_stacked_bar_active_only(all_flies_data_with_looms, group1_label, plot_path, baseline_frames)
-
+ 
 #%%
 # ============================================================================
 # SMART SOLUTION: FILTER THE COMBINED ETHOGRAM BY ESCAPE TYPE
 # ============================================================================
 #we already have the combined ethogram working with colors! Just filter it by escape type instead of recreating everything.
-
+ 
 def create_individual_ethograms_from_combined(all_flies_data, group_name, save_path, 
                                               baseline_frames, loom_indices=list(range(20)),
                                               frames_before=60, frames_after=window_loom_responses, 
@@ -1824,7 +1880,7 @@ def create_individual_ethograms_from_combined(all_flies_data, group_name, save_p
     print(f"\n{'='*70}")
     print("All individual ethograms created!")
     print(f"{'='*70}\n")
-
+ 
 #%%
 def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames):
     """
@@ -1869,8 +1925,8 @@ def add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)
         all_flies_updated.append((df_updated, loom_onset))
     
     return all_flies_updated
-
-
+ 
+ 
 def filter_active_escape_trials(all_flies_data_with_looms, baseline_frames):
     """Filter to only include trials with active escapes (not freeze-only)."""
     def filter_func(df_try, loom_start, window_start, window_end):
@@ -1896,8 +1952,8 @@ def filter_active_escape_trials(all_flies_data_with_looms, baseline_frames):
                 has_turn_floor or has_walk_away)
     
     return filter_func
-
-
+ 
+ 
 def create_layered_behavior_column(all_flies_with_escapes):
     """Create separate columns for background (Run) and foreground (other behaviors)."""
     all_flies_layered = []
@@ -1914,8 +1970,8 @@ def create_layered_behavior_column(all_flies_with_escapes):
         all_flies_layered.append((df_layered, loom_onset))
     
     return all_flies_layered
-
-
+ 
+ 
 def sort_by_freeze_frames(ethogram_data, frames_before=60):
     """Sort by number of Freeze frames from loom onset to 1.5s after.""" #frames before is very confusingand is linked just with the fact on where is the loom in the etogramme. If you don't change window of etograme just don't put any parameter and is ok. will sort from loom onset to 90 frames after 
     loom_onset_frame = frames_before
@@ -1929,8 +1985,8 @@ def sort_by_freeze_frames(ethogram_data, frames_before=60):
     
     sorted_indices = np.argsort(freeze_counts)[::-1]
     return ethogram_data.iloc[sorted_indices].reset_index(drop=True), sorted_indices
-
-
+ 
+ 
 def plot_ethogram_with_background(ethogram_bg, ethogram_fg, metadata, group_name, frames_before=60, frames_after=window_loom_responses, frame_rate=60,
                                   loom_duration_frames=loom_duration, save_path=None):
     """Plot ethogram with Run in background and other behaviors in foreground."""
@@ -2073,8 +2129,8 @@ def create_escape_specific_filter(escape_type):
         return df_try.loc[matching_offset, escape_type] == 1
     
     return filter_func
-
-
+ 
+ 
 def create_no_response_filter(baseline_frames):
     """
     Filter for trials with NO escape response (no active escape AND no freeze).
@@ -2107,9 +2163,9 @@ def create_no_response_filter(baseline_frames):
         return no_escape
     
     return filter_func
-
-
-
+ 
+ 
+ 
 def plot_no_response_speed_profile(all_flies_data, group_name, save_path, baseline_frames,
                                    frames_before=60, frames_after=window_loom_responses, 
                                    frame_rate=60, loom_duration_frames=loom_duration):
@@ -2180,7 +2236,7 @@ def plot_no_response_speed_profile(all_flies_data, group_name, save_path, baseli
     
     plt.show()    
     print(f"Created no-response speed profile with {len(no_response_traces)} trials")
-
+ 
 #%% CREATE INDIVIDUAL ETHOGRAMS (SMART WAY - REUSE COMBINED ETHOGRAM LOGIC!)
 create_individual_ethograms_from_combined(all_flies_data_with_looms, group_name=group1_label, save_path=plot_path, baseline_frames=baseline_frames, loom_indices=list(range(20)), loom_duration_frames=loom_duration)
 #%% 
@@ -2188,15 +2244,34 @@ create_individual_ethograms_from_combined(all_flies_data_with_looms, group_name=
 all_flies_with_escapes = add_run_and_walkaway_to_behavior(all_flies_data_with_looms, baseline_frames)  # CHANGED!
 all_flies_layered = create_layered_behavior_column(all_flies_with_escapes)
 active_escape_filter = filter_active_escape_trials(all_flies_data_with_looms, baseline_frames)  # CHANGED!
-
+ 
 ethogram_bg, metadata = create_ethogram_data_aligned(all_flies_layered, 'Background_behavior', list(range(20)), filter_func=active_escape_filter)
 ethogram_fg, _ = create_ethogram_data_aligned(all_flies_layered, 'Foreground_behavior', list(range(20)), filter_func=active_escape_filter)
-
+ 
 ethogram_fg_sorted, sort_indices = sort_by_freeze_frames(ethogram_fg)
 ethogram_bg_sorted = ethogram_bg.iloc[sort_indices].reset_index(drop=True)
-
+ 
 plot_ethogram_with_background(ethogram_bg_sorted, ethogram_fg_sorted, metadata, group1_label, save_path=plot_path + '/' + experiment_name + '_ethogram_layered_escapes.png')
-
+ 
 #no-response speed profile
 plot_no_response_speed_profile(all_flies_data_with_looms, group_name=group1_label, save_path=plot_path, baseline_frames=baseline_frames, frame_rate=60)
-
+ 
+# ── SAVE GLMM DATAFRAMES ──────────────────────────────────────────────────────
+loom_responses_df = pd.DataFrame(loom_rows)
+escape_detail_df  = pd.DataFrame(escape_rows)
+ 
+loom_responses_df.to_csv(
+    f"{plot_path}/{experiment_name}_loom_responses_glmm.csv", index=False)
+escape_detail_df.to_csv(
+    f"{plot_path}/{experiment_name}_escape_detail_glmm.csv",  index=False)
+ 
+print(f"\n{'='*60}")
+print(f"GLMM DATAFRAMES SAVED")
+print(f"{'='*60}")
+print(f"✓ loom_responses_df : {len(loom_responses_df)} rows "
+      f"({loom_responses_df['fly_id'].nunique()} flies × up to 20 looms)")
+print(loom_responses_df['response'].value_counts())
+print(f"\n✓ escape_detail_df  : {len(escape_detail_df)} rows "
+      f"(escape + mix looms only)")
+print(escape_detail_df['escape_combination'].value_counts())
+print(f"{'='*60}\n")
